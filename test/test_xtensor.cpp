@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -175,6 +176,9 @@ namespace xt
     {
         xtensor_dynamic a;
         test_reshape<xtensor_dynamic, storage_type>(a);
+
+        xtensor<int, 1> b;
+        test_throwing_reshape(b);
     }
 
     TEST(xtensor, transpose)
@@ -183,11 +187,13 @@ namespace xt
         test_transpose<xtensor_dynamic, storage_type>(a);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xtensor, access)
     {
         xtensor_dynamic a;
         test_access<xtensor_dynamic, storage_type>(a);
     }
+#endif
 
     TEST(xtensor, unchecked)
     {
@@ -201,11 +207,13 @@ namespace xt
         test_at<xtensor_dynamic, storage_type>(a);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xtensor, element)
     {
         xtensor_dynamic a;
         test_element<xtensor_dynamic, storage_type>(a);
     }
+#endif
 
     TEST(xtensor, indexed_access)
     {
@@ -315,4 +323,26 @@ namespace xt
         EXPECT_TRUE(idx==jdx);
     }
 
+    TEST(xtensor, periodic)
+    {
+        xt::xtensor<size_t,2> a = {{0,1,2}, {3,4,5}};
+        xt::xtensor<size_t,2> b = {{0,1,2}, {30,40,50}};
+        a.periodic(-1,3) = 30;
+        a.periodic(-1,4) = 40;
+        a.periodic(-1,5) = 50;
+        EXPECT_EQ(a, b);
+    }
+
+    TEST(xtensor, in_bounds)
+    {
+        xt::xtensor<size_t,2> a = {{0,1,2}, {3,4,5}};
+        EXPECT_TRUE(a.in_bounds(0,0) == true);
+        EXPECT_TRUE(a.in_bounds(2,0) == false);
+    }
+
+    TEST(xtensor, iterator_types)
+    {
+        using tensor_type = xtensor<int, 2>;
+        test_iterator_types<tensor_type, int*, const int*>();
+    }
 }

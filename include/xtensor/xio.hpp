@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -440,7 +441,7 @@ namespace xt
             void init()
             {
                 m_it = m_cache.cbegin();
-                m_width = 1 + std::streamsize(std::log10(m_max)) + m_sign;
+                m_width = 1 + std::streamsize((m_max > 0) ? std::log10(m_max) : 0) + m_sign;
             }
 
             std::ostream& print_next(std::ostream& out)
@@ -702,9 +703,35 @@ namespace xt
         return pretty_print(print_fun, out);
     }
 
+    namespace detail
+    {
+        template <class S>
+        class fmtflags_guard
+        {
+        public:
+
+            explicit fmtflags_guard(S& stream)
+                : m_stream(stream), m_flags(stream.flags())
+            {
+            }
+
+            ~fmtflags_guard()
+            {
+                m_stream.flags(m_flags);
+            }
+
+        private:
+
+            S& m_stream;
+            std::ios_base::fmtflags m_flags;
+        };
+    }
+
     template <class E>
     std::ostream& pretty_print(const xexpression<E>& e, std::ostream& out = std::cout)
     {
+        detail::fmtflags_guard<std::ostream> guard(out);
+
         const E& d = e.derived_cast();
 
         std::size_t lim = 0;

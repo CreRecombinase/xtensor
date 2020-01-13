@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -13,6 +14,7 @@
 #include "xtensor/xbuilder.hpp"
 #include "xtensor/xcomplex.hpp"
 #include "xtensor/xio.hpp"
+#include "xtensor/xnorm.hpp"
 
 namespace xt
 {
@@ -126,10 +128,7 @@ namespace xt
         using assign_t_angle = xassign_traits<xarray<double>, decltype(cmplres_angle)>;
 
 #if XTENSOR_USE_XSIMD
-        EXPECT_TRUE(assign_t_angle::convertible_types());
-        EXPECT_TRUE(assign_t_angle::simd_size());
-        EXPECT_FALSE(assign_t_angle::forbid_simd());
-        EXPECT_TRUE(assign_t_angle::simd_assign());
+        EXPECT_TRUE(assign_t_angle::simd_linear_assign());
 #endif
 
         auto cmplres_conj = xt::conj(cmplarg_0);
@@ -145,10 +144,7 @@ namespace xt
         auto b2 = cmplres_conj.template load_simd<xsimd::aligned_mode>(0);
         static_cast<void>(b1);
         static_cast<void>(b2);
-        EXPECT_TRUE(assign_t_conj::convertible_types());
-        EXPECT_TRUE(assign_t_conj::simd_size());
-        EXPECT_FALSE(assign_t_conj::forbid_simd());
-        EXPECT_TRUE(assign_t_conj::simd_assign());
+        EXPECT_TRUE(assign_t_conj::simd_linear_assign());
 #endif
 
         auto cmplres_norm = xt::norm(cmplarg_0);
@@ -159,10 +155,7 @@ namespace xt
         using assign_t_norm = xassign_traits<xarray<double>, decltype(cmplres_norm)>;
 
 #if XTENSOR_USE_XSIMD
-        EXPECT_TRUE(assign_t_norm::convertible_types());
-        EXPECT_TRUE(assign_t_norm::simd_size());
-        EXPECT_FALSE(assign_t_norm::forbid_simd());
-        EXPECT_TRUE(assign_t_norm::simd_assign());
+        EXPECT_TRUE(assign_t_norm::simd_linear_assign());
 #endif
 
         EXPECT_TRUE(allclose(fieldnorm, cmplres_norm));
@@ -188,10 +181,7 @@ namespace xt
         using assign_t_arg = xassign_traits<xarray<double>, decltype(cmplres)>;
 
 #if XTENSOR_USE_XSIMD
-        EXPECT_TRUE(assign_t_arg::convertible_types());
-        EXPECT_TRUE(assign_t_arg::simd_size());
-        EXPECT_FALSE(assign_t_arg::forbid_simd());
-        EXPECT_TRUE(assign_t_arg::simd_assign());
+        EXPECT_TRUE(assign_t_arg::simd_linear_assign());
 #endif
 
     }
@@ -255,5 +245,65 @@ namespace xt
         EXPECT_TRUE(isclose(c_t(inf, -inf), c_t(0, inf))() == false);
         EXPECT_TRUE(isclose(c_t(5, 5), c_t(5, -5))() == false);
 
+    }
+
+    TEST(xcomplex, real_expression)
+    {
+        using cpx = std::complex<double>;
+        xtensor<cpx, 2> a = {{ cpx(1, 1), cpx(-1, 1), cpx(-2, -2) },
+                             { cpx(-1, 0), cpx(0, 1), cpx(2, 2) }};
+
+        xtensor<double, 2> exp = {{2, -2, -4},
+                                  {-2, 0, 4}};
+        xtensor<double, 2> res = real(a + a);
+        EXPECT_EQ(res, exp);
+    }
+
+    TEST(xcomplex, conj)
+    {
+        using cpx = std::complex<double>;
+        xtensor<cpx, 2> a = {{ cpx(1, 1), cpx(-1, 1), cpx(-2, -2) },
+                             { cpx(-1, 0), cpx(0, 1), cpx(2, 2) }};
+        xtensor<cpx, 2> res = conj(a);
+        xtensor<cpx, 2> exp = {{ cpx(1, -1), cpx(-1, -1), cpx(-2, 2) },
+                             { cpx(-1, 0), cpx(0, -1), cpx(2, -2) }};
+
+        EXPECT_EQ(res, exp);
+    }
+
+    TEST(xcomplex, exp)
+    {
+        xt::xarray<float> ph = {274.7323f, 276.3974f, 274.7323f, 276.3974f, 274.7323f, 276.3974f, 274.7323f, 276.3974f};
+        xt::xarray<std::complex<float>> input = ph * std::complex<float>(0, 1.f);
+        xt::xarray<std::complex<float>> res = xt::exp(input);
+        auto expected = xt::xarray<std::complex<float>>::from_shape({ size_t(8) });
+        std::transform(input.cbegin(), input.cend(), expected.begin(), [](const std::complex<float>& arg) {
+            return std::exp(arg);
+        });
+        EXPECT_EQ(expected, res);
+    }
+
+    TEST(xcomplex, longdouble)
+    {
+        using cmplx = std::complex<long double>;
+        xt::xtensor<cmplx, 2> a = xt::empty<cmplx>({5, 5});
+        xt::real(a) = 123.321;
+        xt::imag(a) = -123.321;
+
+        EXPECT_EQ(a(4, 4), cmplx(123.321, -123.321));
+
+        xt::real(a) = xt::imag(a);
+
+        EXPECT_EQ(a(0, 0), cmplx(-123.321, -123.321));
+        EXPECT_EQ(a(4, 4), cmplx(-123.321, -123.321));
+    }
+
+    TEST(xcomplex, build_from_double)
+    {
+        xt::xarray<double> r = { 1., 2., 3. };
+        xt::xarray<std::complex<double>> rc(r);
+        EXPECT_EQ(rc(0).real(), r(0));
+        EXPECT_EQ(rc(1).real(), r(1));
+        EXPECT_EQ(rc(2).real(), r(2));
     }
 }

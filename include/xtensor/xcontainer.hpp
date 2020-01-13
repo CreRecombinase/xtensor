@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -17,11 +18,13 @@
 #include <xtl/xmeta_utils.hpp>
 #include <xtl/xsequence.hpp>
 
+#include "xaccessible.hpp"
 #include "xiterable.hpp"
 #include "xiterator.hpp"
 #include "xmath.hpp"
 #include "xoperation.hpp"
 #include "xstrides.hpp"
+#include "xtensor_config.hpp"
 #include "xtensor_forward.hpp"
 
 namespace xt
@@ -53,7 +56,6 @@ namespace xt
     template <class T>
     using allocator_type_t = typename detail::allocator_type_impl<T>::type;
 
-
     /**
      * @class xcontainer
      * @brief Base class for dense multidimensional containers.
@@ -66,7 +68,8 @@ namespace xt
      *           provides the interface.
      */
     template <class D>
-    class xcontainer : public xcontiguous_iterable<D>
+    class xcontainer : public xcontiguous_iterable<D>,
+                       private xaccessible<D>
     {
     public:
 
@@ -76,15 +79,14 @@ namespace xt
         using storage_type = typename inner_types::storage_type;
         using allocator_type = allocator_type_t<std::decay_t<storage_type>>;
         using value_type = typename storage_type::value_type;
-        using reference = std::conditional_t<std::is_const<storage_type>::value,
-                                             typename storage_type::const_reference,
-                                             typename storage_type::reference>;
-        using const_reference = typename storage_type::const_reference;
+        using reference = typename inner_types::reference;
+        using const_reference = typename inner_types::const_reference;
         using pointer = typename storage_type::pointer;
         using const_pointer = typename storage_type::const_pointer;
-        using size_type = typename storage_type::size_type;
+        using size_type = typename inner_types::size_type;
         using difference_type = typename storage_type::difference_type;
-        using simd_value_type = xsimd::simd_type<value_type>;
+        using simd_value_type = xt_simd::simd_type<value_type>;
+        using bool_load_type = xt::bool_load_type<value_type>;
 
         using shape_type = typename inner_types::shape_type;
         using strides_type = typename inner_types::strides_type;
@@ -98,15 +100,17 @@ namespace xt
         using stepper = typename iterable_base::stepper;
         using const_stepper = typename iterable_base::const_stepper;
 
+        using accessible_base = xaccessible<D>;
+
         static constexpr layout_type static_layout = inner_types::layout;
         static constexpr bool contiguous_layout = static_layout != layout_type::dynamic;
-        using data_alignment = xsimd::container_alignment_t<storage_type>;
-        using simd_type = xsimd::simd_type<value_type>;
+        using data_alignment = xt_simd::container_alignment_t<storage_type>;
+        using simd_type = xt_simd::simd_type<value_type>;
 
-        using storage_iterator = typename storage_type::iterator;
-        using const_storage_iterator = typename storage_type::const_iterator;
-        using reverse_storage_iterator = typename storage_type::reverse_iterator;
-        using const_reverse_storage_iterator = typename storage_type::const_reverse_iterator;
+        using storage_iterator = typename iterable_base::storage_iterator;
+        using const_storage_iterator = typename iterable_base::const_storage_iterator;
+        using reverse_storage_iterator = typename iterable_base::reverse_storage_iterator;
+        using const_reverse_storage_iterator = typename iterable_base::const_reverse_storage_iterator;
 
         static_assert(static_layout != layout_type::any, "Container layout can never be layout_type::any!");
 
@@ -128,28 +132,16 @@ namespace xt
         const_reference operator()(Args... args) const;
 
         template <class... Args>
-        reference at(Args... args);
-
-        template <class... Args>
-        const_reference at(Args... args) const;
-
-        template <class... Args>
         reference unchecked(Args... args);
 
         template <class... Args>
         const_reference unchecked(Args... args) const;
 
-        template <class S>
-        disable_integral_t<S, reference> operator[](const S& index);
-        template <class I>
-        reference operator[](std::initializer_list<I> index);
-        reference operator[](size_type i);
-
-        template <class S>
-        disable_integral_t<S, const_reference> operator[](const S& index) const;
-        template <class I>
-        const_reference operator[](std::initializer_list<I> index) const;
-        const_reference operator[](size_type i) const;
+        using accessible_base::shape;
+        using accessible_base::at;
+        using accessible_base::operator[];
+        using accessible_base::periodic;
+        using accessible_base::in_bounds;
 
         template <class It>
         reference element(It first, It last);
@@ -182,13 +174,14 @@ namespace xt
         const_reference data_element(size_type i) const;
 
         template <class requested_type>
-        using simd_return_type = xsimd::simd_return_type<value_type, requested_type>;
+        using simd_return_type = xt_simd::simd_return_type<value_type, requested_type>;
 
         template <class align, class simd>
         void store_simd(size_type i, const simd& e);
         template <class align, class requested_type = value_type,
-                  std::size_t N = xsimd::simd_traits<requested_type>::size>
-        simd_return_type<requested_type> load_simd(size_type i) const;
+                  std::size_t N = xt_simd::simd_traits<requested_type>::size>
+        container_simd_return_type_t<storage_type, value_type, requested_type>
+        /*simd_return_type<requested_type>*/ load_simd(size_type i) const;
 
         storage_iterator storage_begin() noexcept;
         storage_iterator storage_end() noexcept;
@@ -233,15 +226,18 @@ namespace xt
 
     private:
 
-        template <class C>
-        friend class xstepper;
-
         template <class It>
         It data_xend_impl(It begin, layout_type l, size_type offset) const noexcept;
 
         inner_shape_type& mutable_shape();
         inner_strides_type& mutable_strides();
         inner_backstrides_type& mutable_backstrides();
+
+        template <class C>
+        friend class xstepper;
+
+        friend class xaccessible<D>;
+        friend class xconst_accessible<D>;
     };
 
     /**
@@ -283,9 +279,13 @@ namespace xt
         void resize(S&& shape, const strides_type& strides);
 
         template <class S = shape_type>
-        void reshape(S&& shape, layout_type layout = base_type::static_layout);
+        auto& reshape(S&& shape, layout_type layout = base_type::static_layout) &;
+
+        template <class T>
+        auto& reshape(std::initializer_list<T> shape, layout_type layout = base_type::static_layout) &;
 
         layout_type layout() const noexcept;
+        bool is_contiguous() const noexcept;
 
     protected:
 
@@ -315,10 +315,7 @@ namespace xt
         template <class S = shape_type>
         void reshape_impl(S&& shape, std::false_type, layout_type layout = base_type::static_layout);
 
-        layout_type& mutable_layout() noexcept
-        {
-            return m_layout;
-        }
+        layout_type& mutable_layout() noexcept;
 
     private:
 
@@ -456,40 +453,6 @@ namespace xt
     }
 
     /**
-     * Returns a reference to the element at the specified position in the container,
-     * after dimension and bounds checking.
-     * @param args a list of indices specifying the position in the container. Indices
-     * must be unsigned integers, the number of indices should be equal to the number of dimensions
-     * of the container.
-     * @exception std::out_of_range if the number of argument is greater than the number of dimensions
-     * or if indices are out of bounds.
-     */
-    template <class D>
-    template <class... Args>
-    inline auto xcontainer<D>::at(Args... args) -> reference
-    {
-        check_access(shape(), static_cast<size_type>(args)...);
-        return this->operator()(args...);
-    }
-
-    /**
-     * Returns a constant reference to the element at the specified position in the container,
-     * after dimension and bounds checking.
-     * @param args a list of indices specifying the position in the container. Indices
-     * must be unsigned integers, the number of indices should be equal to the number of dimensions
-     * of the container.
-     * @exception std::out_of_range if the number of argument is greater than the number of dimensions
-     * or if indices are out of bounds.
-     */
-    template <class D>
-    template <class... Args>
-    inline auto xcontainer<D>::at(Args... args) const -> const_reference
-    {
-        check_access(shape(), static_cast<size_type>(args)...);
-        return this->operator()(args...);
-    }
-
-    /**
      * Returns a reference to the element at the specified position in the container.
      * @param args a list of indices specifying the position in the container. Indices
      * must be unsigned integers, the number of indices must be equal to the number of
@@ -541,60 +504,6 @@ namespace xt
     {
         size_type index = xt::unchecked_data_offset<size_type, static_layout>(strides(), static_cast<std::ptrdiff_t>(args)...);
         return storage()[index];
-    }
-
-    /**
-     * Returns a reference to the element at the specified position in the container.
-     * @param index a sequence of indices specifying the position in the container. Indices
-     * must be unsigned integers, the number of indices in the list should be equal or greater
-     * than the number of dimensions of the container.
-     */
-    template <class D>
-    template <class S>
-    inline auto xcontainer<D>::operator[](const S& index)
-        -> disable_integral_t<S, reference>
-    {
-        return element(index.cbegin(), index.cend());
-    }
-
-    template <class D>
-    template <class I>
-    inline auto xcontainer<D>::operator[](std::initializer_list<I> index) -> reference
-    {
-        return element(index.begin(), index.end());
-    }
-
-    template <class D>
-    inline auto xcontainer<D>::operator[](size_type i) -> reference
-    {
-        return operator()(i);
-    }
-
-    /**
-     * Returns a constant reference to the element at the specified position in the container.
-     * @param index a sequence of indices specifying the position in the container. Indices
-     * must be unsigned integers, the number of indices in the list should be equal or greater
-     * than the number of dimensions of the container.
-     */
-    template <class D>
-    template <class S>
-    inline auto xcontainer<D>::operator[](const S& index) const
-        -> disable_integral_t<S, const_reference>
-    {
-        return element(index.cbegin(), index.cend());
-    }
-
-    template <class D>
-    template <class I>
-    inline auto xcontainer<D>::operator[](std::initializer_list<I> index) const -> const_reference
-    {
-        return element(index.begin(), index.end());
-    }
-
-    template <class D>
-    inline auto xcontainer<D>::operator[](size_type i) const -> const_reference
-    {
-        return operator()(i);
     }
 
     /**
@@ -798,16 +707,17 @@ namespace xt
     inline void xcontainer<D>::store_simd(size_type i, const simd& e)
     {
         using align_mode = driven_align_mode_t<alignment, data_alignment>;
-        xsimd::store_simd<value_type, typename simd::value_type>(&(storage()[i]), e, align_mode());
+        xt_simd::store_simd<value_type, typename simd::value_type>(&(storage()[i]), e, align_mode());
     }
 
     template <class D>
     template <class alignment, class requested_type, std::size_t N>
     inline auto xcontainer<D>::load_simd(size_type i) const
-        -> simd_return_type<requested_type>
+        -> container_simd_return_type_t<storage_type, value_type, requested_type>
+        //-> simd_return_type<requested_type>
     {
         using align_mode = driven_align_mode_t<alignment, data_alignment>;
-        return xsimd::load_simd<value_type, requested_type>(&(storage()[i]), align_mode());
+        return xt_simd::load_simd<value_type, requested_type>(&(storage()[i]), align_mode());
     }
 
     template <class D>
@@ -956,9 +866,18 @@ namespace xt
      * @return layout_type of the container
      */
     template <class D>
-    layout_type xstrided_container<D>::layout() const noexcept
+    inline layout_type xstrided_container<D>::layout() const noexcept
     {
         return m_layout;
+    }
+
+    template <class D>
+    inline bool xstrided_container<D>::is_contiguous() const noexcept
+    {
+        using str_type = typename inner_strides_type::value_type;
+        return m_strides.empty()
+            || (m_layout == layout_type::row_major && m_strides.back() == str_type(1))
+            || (m_layout == layout_type::column_major && m_strides.front() == str_type(1));
     }
 
     namespace detail
@@ -979,7 +898,9 @@ namespace xt
     }
 
     /**
-     * resizes the container.
+     * Resizes the container.
+     * @warning Contrary to STL containers like std::vector, resize
+     * does NOT preserve the container elements.
      * @param shape the new shape
      * @param force force reshaping, even if the shape stays the same (default: false)
      */
@@ -1003,7 +924,9 @@ namespace xt
     }
 
     /**
-     * resizes the container.
+     * Resizes the container.
+     * @warning Contrary to STL containers like std::vector, resize
+     * does NOT preserve the container elements.
      * @param shape the new shape
      * @param l the new layout_type
      */
@@ -1013,7 +936,7 @@ namespace xt
     {
         if (base_type::static_layout != layout_type::dynamic && l != base_type::static_layout)
         {
-            throw std::runtime_error("Cannot change layout_type if template parameter not layout_type::dynamic.");
+            XTENSOR_THROW(std::runtime_error, "Cannot change layout_type if template parameter not layout_type::dynamic.");
         }
         m_layout = l;
         resize(std::forward<S>(shape), true);
@@ -1021,6 +944,8 @@ namespace xt
 
     /**
      * Resizes the container.
+     * @warning Contrary to STL containers like std::vector, resize
+     * does NOT preserve the container elements.
      * @param shape the new shape
      * @param strides the new strides
      */
@@ -1030,7 +955,8 @@ namespace xt
     {
         if (base_type::static_layout != layout_type::dynamic)
         {
-            throw std::runtime_error("Cannot resize with custom strides when layout() is != layout_type::dynamic.");
+            XTENSOR_THROW(std::runtime_error,
+                          "Cannot resize with custom strides when layout() is != layout_type::dynamic.");
         }
         m_shape = xtl::forward_sequence<shape_type, S>(shape);
         m_strides = strides;
@@ -1041,16 +967,35 @@ namespace xt
     }
 
     /**
-     * Reshapes the container and keeps old elements
+     * Reshapes the container and keeps old elements. The `shape` argument can have one of its value
+     * equal to `-1`, in this case the value is inferred from the number of elements in the container
+     * and the remaining values in the `shape`.
+     * \code{.cpp}
+     * xt::xarray<int> a = { 1, 2, 3, 4, 5, 6, 7, 8 };
+     * a.reshape({-1, 4});
+     * //a.shape() is {2, 4}
+     * \endcode
      * @param shape the new shape (has to have same number of elements as the original container)
      * @param layout the layout to compute the strides (defaults to static layout of the container,
      *               or for a container with dynamic layout to XTENSOR_DEFAULT_LAYOUT)
      */
     template <class D>
     template <class S>
-    inline void xstrided_container<D>::reshape(S&& shape, layout_type layout)
+    inline auto& xstrided_container<D>::reshape(S&& shape, layout_type layout) &
     {
         reshape_impl(std::forward<S>(shape), std::is_signed<std::decay_t<typename std::decay_t<S>::value_type>>(), std::forward<layout_type>(layout));
+        return this->derived_cast();
+    }
+
+    template <class D>
+    template <class T>
+    inline auto& xstrided_container<D>::reshape(std::initializer_list<T> shape, layout_type layout) &
+    {
+        using sh_type = rebind_container_t<T, shape_type>;
+        sh_type sh = xtl::make_sequence<sh_type>(shape.size());
+        std::copy(shape.begin(), shape.end(), sh.begin());
+        reshape_impl(std::move(sh), std::is_signed<T>(), std::forward<layout_type>(layout));
+        return this->derived_cast();
     }
 
     template <class D>
@@ -1059,7 +1004,7 @@ namespace xt
     {
         if (compute_size(shape) != this->size())
         {
-            throw std::runtime_error("Cannot reshape with incorrect number of elements. Do you mean to resize?");
+            XTENSOR_THROW(std::runtime_error, "Cannot reshape with incorrect number of elements. Do you mean to resize?");
         }
         if (D::static_layout == layout_type::dynamic && layout == layout_type::dynamic)
         {
@@ -1067,7 +1012,7 @@ namespace xt
         }
         if (D::static_layout != layout_type::dynamic && layout != D::static_layout)
         {
-            throw std::runtime_error("Cannot reshape with different layout if static layout != dynamic.");
+            XTENSOR_THROW(std::runtime_error, "Cannot reshape with different layout if static layout != dynamic.");
         }
         m_layout = layout;
         m_shape = xtl::forward_sequence<shape_type, S>(shape);
@@ -1075,16 +1020,18 @@ namespace xt
         resize_container(m_backstrides, m_shape.size());
         compute_strides<D::static_layout>(m_shape, m_layout, m_strides, m_backstrides);
     }
+
     template <class D>
     template <class S>
     inline void xstrided_container<D>::reshape_impl(S&& _shape, std::true_type /* is signed */, layout_type layout)
     {
         using value_type = typename std::decay_t<S>::value_type;
-        if (this->size() % compute_size(_shape))
+        auto new_size = compute_size(_shape);
+        if (this->size() % new_size)
         {
-            throw std::runtime_error("Negative axis size cannot be inferred. Shape mismatch.");
+            XTENSOR_THROW(std::runtime_error, "Negative axis size cannot be inferred. Shape mismatch.");
         }
-        std::decay_t<S> shape = _shape; 
+        std::decay_t<S> shape = _shape;
         value_type accumulator = 1;
         std::size_t neg_idx = 0;
         std::size_t i = 0;
@@ -1102,11 +1049,21 @@ namespace xt
         {
             shape[neg_idx] = static_cast<value_type>(this->size()) / std::abs(accumulator);
         }
+        else if(this->size() != new_size)
+        {
+            XTENSOR_THROW(std::runtime_error, "Cannot reshape with incorrect number of elements. Do you mean to resize?");
+        }
         m_layout = layout;
         m_shape = xtl::forward_sequence<shape_type, S>(shape);
         resize_container(m_strides, m_shape.size());
         resize_container(m_backstrides, m_shape.size());
         compute_strides<D::static_layout>(m_shape, m_layout, m_strides, m_backstrides);
+    }
+    
+    template <class D>
+    inline auto xstrided_container<D>::mutable_layout() noexcept -> layout_type&
+    {
+        return m_layout;
     }
 }
 

@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -77,7 +78,7 @@ namespace xt
 
         {
             SCOPED_TRACE("same shape");
-            shape_type sh(3, size_t(0));
+            shape_type sh = uninitialized_shape<shape_type>(3);
             bool trivial = (f.m_a + f.m_a).broadcast_shape(sh);
             EXPECT_EQ(sh, f.m_a.shape());
             ASSERT_TRUE(trivial);
@@ -85,7 +86,7 @@ namespace xt
 
         {
             SCOPED_TRACE("different shape");
-            shape_type sh(3, size_t(0));
+            shape_type sh = uninitialized_shape<shape_type>(3);
             bool trivial = (f.m_a + f.m_b).broadcast_shape(sh);
             EXPECT_EQ(sh, f.m_a.shape());
             ASSERT_FALSE(trivial);
@@ -93,10 +94,28 @@ namespace xt
 
         {
             SCOPED_TRACE("different dimensions");
-            shape_type sh(4, size_t(0));
+            shape_type sh = uninitialized_shape<shape_type>(4);
             bool trivial = (f.m_a + f.m_c).broadcast_shape(sh);
             EXPECT_EQ(sh, f.m_c.shape());
             ASSERT_FALSE(trivial);
+        }
+    }
+
+    TEST(xfunction, broadcast_shape_exception)
+    {
+        xt::xarray<double> arr1{ { 1.0, 2.0, 3.0 } };
+        xt::xarray<double> arr2{ 5.0, 6.0, 7.0, 99.0 };
+        XT_EXPECT_ANY_THROW(xt::xarray<double> res = arr1 * arr2);
+    }
+
+    TEST(xfunction, shape)
+    {
+        xfunction_features f;
+        auto func = f.m_a + f.m_c;
+        const auto& sh = func.shape();
+        for(std::size_t i = 0; i < sh.size(); ++i)
+        {
+            EXPECT_EQ(sh[i], func.shape(i));
         }
     }
 
@@ -207,8 +226,8 @@ namespace xt
             int a = (f.m_a + f.m_a).at(i, j, k);
             int b = f.m_a.at(i, j, k) + f.m_a.at(i, j, k);
             EXPECT_EQ(a, b);
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0));
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10));
         }
 
         {
@@ -216,8 +235,8 @@ namespace xt
             int a = (f.m_a + f.m_b).at(i, j, k);
             int b = f.m_a.at(i, j, k) + f.m_b.at(i, 0, k);
             EXPECT_EQ(a, b);
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0));
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10));
         }
 
         {
@@ -225,8 +244,50 @@ namespace xt
             int a = (f.m_a + f.m_c).at(1, i, j, k);
             int b = f.m_a.at(i, j, k) + f.m_c.at(1, i, j, k);
             EXPECT_EQ(a, b);
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0, 0));
-            EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10, 10));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(0, 0, 0, 0, 0));
+            XT_EXPECT_ANY_THROW((f.m_a + f.m_a).at(10, 10, 10, 10));
+        }
+    }
+
+    TEST(xfunction, periodic)
+    {
+        xfunction_features f;
+        size_t i = f.m_a.shape()[0];
+        size_t j = f.m_a.shape()[1];
+        size_t k = f.m_a.shape()[2];
+
+        {
+            SCOPED_TRACE("same shape");
+            int a = (f.m_a + f.m_a)(0, 0, 0);
+            int b = (f.m_a + f.m_a).periodic(i, j, k);
+            EXPECT_EQ(a, b);
+        }
+
+        {
+            SCOPED_TRACE("different shape");
+            int a = (f.m_a + f.m_b)(0, 0, 0);
+            int b = (f.m_a + f.m_b).periodic(i, j, k);
+            EXPECT_EQ(a, b);
+        }
+    }
+
+    TEST(xfunction, in_bounds)
+    {
+        xfunction_features f;
+        size_t i = f.m_a.shape()[0];
+        size_t j = f.m_a.shape()[1];
+        size_t k = f.m_a.shape()[2];
+
+        {
+            SCOPED_TRACE("same shape");
+            EXPECT_TRUE((f.m_a + f.m_a).in_bounds(0, 0, 0) == true);
+            EXPECT_TRUE((f.m_a + f.m_a).in_bounds(i, j, k) == false);
+        }
+
+        {
+            SCOPED_TRACE("different shape");
+            EXPECT_TRUE((f.m_a + f.m_b).in_bounds(0, 0, 0) == true);
+            EXPECT_TRUE((f.m_a + f.m_b).in_bounds(i, j, k) == false);
         }
     }
 

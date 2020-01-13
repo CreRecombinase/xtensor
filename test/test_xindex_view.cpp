@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -151,6 +152,20 @@ namespace xt
         filter(a, a > 3) += filter(b, b > 3);
         xarray<double> expected = {{ 1, 10, 3}, {8, 10, 12}};
         EXPECT_EQ(expected, a);
+    }
+
+    TEST(xindex_view, filter_column_major)
+    {
+        xarray<int> a = {{{1, 3}, {2, 4}}, {{5, 7}, {6, 8}}};
+        xarray<bool> cond = {{{true, true}, {false, false}}, {{true, true}, {false, false}}};
+        
+        xarray<int> resc = xt::filter<xt::layout_type::column_major>(a, cond);
+        xarray<int> expc = {1, 5 ,3, 7};
+        EXPECT_EQ(resc, expc);
+
+        xarray<int> resr = xt::filter(a, cond);
+        xarray<int> expr = {1, 3 ,5, 7};
+        EXPECT_EQ(resr, expr);
     }
 
     TEST(xindex_view, const_adapt_filter)

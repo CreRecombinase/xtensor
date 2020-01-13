@@ -4,11 +4,14 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
+.. _view-description:
+
 Views
 =====
 
-Views are used to adapt the shape of an ``xexpression`` without changing it, nor copying it. `xtensor`
-provides many kinds of views.
+Views are used to adapt the shape of an ``xexpression`` without changing it, nor copying it. Views are 
+convenient tools for assigning parts of an expression: since they do not copy the underlying expression,
+assigning to the view actually assigns to the underlying expression. `xtensor` provides many kinds of views.
 
 Sliced views
 ------------
@@ -20,8 +23,8 @@ instantiated directly, but though the ``view`` helper function.
 Slices can be specified in the following ways:
 
 - selection in a dimension by specifying an index (unsigned integer)
-- ``range(min, max)``, a slice representing an interval
-- ``range(min, max, step)``, a slice representing a stepped interval
+- ``range(min, max)``, a slice representing the interval [min, max)
+- ``range(min, max, step)``, a slice representing the stepped interval [min, max)
 - ``all()``, a slice representing all the elements of a dimension
 - ``newaxis()``, a slice representing an additional dimension of length one
 - ``keep(i0, i1, i2, ...)`` a slice selecting non-contiguous indices to keep on the underlying expression
@@ -161,7 +164,7 @@ Flatten views
 -------------
 
 It is sometimes useful to have a one-dimensional view of all the elements of an expression. ``xtensor`` provides two functions
-for that, ``ravel`` and ``flatten``. The former one let you specify the order used to read the elements while the latter one
+for that, ``ravel`` and ``flatten``. The former one lets you specify the order used to read the elements while the latter one
 uses the layout of the expression.
 
 .. code::
@@ -206,7 +209,7 @@ Dynamic views
 -------------
 
 The dynamic view is like the strided view, but with support of the slices returned by the ``keep`` and ``drop`` functions.
-However, this support has a cost and the dynamic view is slower than the strided view, even when no keeping or dropping
+However, this support has a cost and the dynamic view is slower than the strided view, even when no keeping or dropping of a 
 slice is involved.
 
 .. code::
@@ -241,6 +244,22 @@ with the ``index_view`` helper function.
 
     xt::xarray<double> a = {{1, 5, 3}, {4, 5, 6}};
     auto b = xt::index_view(a, {{0,0}, {1, 0}, {0, 1}});
+    // => b = { 1, 4, 5 }
+    b += 100;
+    // => a = {{101, 5, 3}, {104, 105, 6}}
+
+The type used for representing indices can be any 1-D container providing an std::vector-like API. The same stands for the type
+of the list of indices:
+
+.. code::
+
+    #include "xtensor/xarray.hpp"
+    #include "xtensor/xindex_view.hpp"
+
+    xt::xarray<double> a = {{1, 5, 3}, {4, 5, 6}};
+    using index_type = std::array<std::size_t, 2>;
+    std::vector<index_type> indices = {{0, 0}, {1, 0}, {0, 1}};
+    auto b = xt::index_view(a, indices);
     // => b = { 1, 4, 5 }
     b += 100;
     // => a = {{101, 5, 3}, {104, 105, 6}}
@@ -301,7 +320,7 @@ Masked views are multidimensional views that apply a mask on an ``xexpression``.
 Broadcasting views
 ------------------
 
-Another type of view provided by `xtensor` is *broadcasting view*. Such a view broadcast an expression to the specified
+Another type of view provided by `xtensor` is *broadcasting view*. Such a view broadcasts an expression to the specified
 shape. As long as the view is not assigned to an array, no memory allocation or copy occurs. Broadcasting views should be
 built with the ``broadcast`` helper function.
 
@@ -321,7 +340,7 @@ built with the ``broadcast`` helper function.
 Complex views
 -------------
 
-In the case of tensor containing complex numbers, `xtensor` provides views returning ``xexpression`` corresponding to the real
+In the case of a tensor containing complex numbers, `xtensor` provides views returning ``xexpression`` corresponding to the real
 and imaginary parts of the complex numbers. Like for other views, the elements of the underlying ``xexpression`` are not copied.
 
 Functions ``xt::real`` and ``xt::imag`` respectively return views on the real and imaginary part of a complex expression.
@@ -350,8 +369,8 @@ The returned value is an expression holding a closure on the passed argument.
 Assigning to a view
 -------------------
 
-When assigning an expression ``rhs`` to a container such as ``xarray``, this last one is resized so its shape is the same as the one
-of ``RHS``. However, since views *cannot be resized*, when assigning an expression to a view, broadcasting rules are applied:
+When assigning an expression ``rhs`` to a container such as ``xarray``, the container is resized so its shape is the same as the one
+of ``rhs``. However, since views *cannot be resized*, when assigning an expression to a view, broadcasting rules are applied:
 
 .. code::
 

@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -7,6 +8,7 @@
 ****************************************************************************/
 
 #include "gtest/gtest.h"
+#include "test_common_macros.hpp"
 #include "xtensor/xscalar.hpp"
 #include "xtensor/xarray.hpp"
 
@@ -57,7 +59,7 @@ namespace xt
     TEST(xscalar, at)
     {
         xscalar<int> x(2);
-        EXPECT_ANY_THROW(x.at(0));
+        XT_EXPECT_ANY_THROW(x.at(0));
     }
 
     TEST(xscalar, dimension)

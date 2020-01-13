@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -11,6 +12,7 @@
 
 #include "gtest/gtest.h"
 #include "xtensor/xarray.hpp"
+#include "xtensor/xadapt.hpp"
 #include "xtensor/xoptional_assembly.hpp"
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
@@ -43,10 +45,7 @@ namespace xt
         using assign_traits = xassign_traits<xarray<double>, decltype(f)>;
 
 #if XTENSOR_USE_XSIMD
-        EXPECT_TRUE(assign_traits::convertible_types());
-        EXPECT_TRUE(assign_traits::simd_size());
-        EXPECT_FALSE(assign_traits::forbid_simd());
-        EXPECT_TRUE(assign_traits::simd_assign());
+        EXPECT_TRUE(assign_traits::simd_linear_assign());
 #endif
     }
 
@@ -142,6 +141,29 @@ namespace xt
 
         double sa = 4.6;
         EXPECT_EQ(fdim(sa, b)(0, 0), std::fdim(sa, b(0, 0)));
+    }
+
+    TEST(xmath, amin_amax)
+    {
+        xarray<double> a{-10.0};
+        EXPECT_EQ(amin(a)[0], -10.0);
+        EXPECT_EQ(amax(a)[0], -10.0);
+
+        xarray<double> b{-10.0, -20.0};
+        EXPECT_EQ(amin(b)[0], -20.0);
+        EXPECT_EQ(amax(b)[0], -10.0);
+
+        xarray<double> c{-10.0, +20.0};
+        EXPECT_EQ(amin(c)[0], -10.0);
+        EXPECT_EQ(amax(c)[0], +20.0);
+
+        xarray<double> d{+10.0, +20.0};
+        EXPECT_EQ(amin(d)[0], +10.0);
+        EXPECT_EQ(amax(d)[0], +20.0);
+
+        xarray<double> e{+10.0};
+        EXPECT_EQ(amin(e)[0], +10.0);
+        EXPECT_EQ(amax(e)[0], +10.0);
     }
 
     TEST(xmath, minimum)
@@ -259,6 +281,46 @@ namespace xt
         EXPECT_TRUE(all(equal(expected, xt::isnan(arr))));
     }
 
+    TEST(xmath, deg2rad)
+    {
+        xarray<double> arr
+            {-180, -135, -90, -45, 0, 45, 90, 135, 180};
+        xarray<double> expected
+            {-3.141593, -2.356194, -1.570796, -0.785398,  0.,
+              0.785398,  1.570796,  2.356194,  3.141593};
+        EXPECT_TRUE(all(isclose(expected, xt::deg2rad(arr))));
+    }
+
+    TEST(xmath, radians)
+    {
+        xarray<double> arr
+            {-180, -135, -90, -45, 0, 45, 90, 135, 180};
+        xarray<double> expected
+            {-3.141593, -2.356194, -1.570796, -0.785398,  0.,
+             0.785398,  1.570796,  2.356194,  3.141593};
+        EXPECT_TRUE(all(isclose(expected, xt::radians(arr))));
+    }
+
+    TEST(xmath, rad2deg)
+    {
+        xarray<double> arr
+            {-3.141593, -2.356194, -1.570796, -0.785398,  0.,
+             0.785398,  1.570796,  2.356194,  3.141593};
+        xarray<double> expected
+            {-180, -135, -90, -45, 0, 45, 90, 135, 180};
+        EXPECT_TRUE(all(isclose(expected, xt::rad2deg(arr))));
+    }
+
+    TEST(xmath, degrees)
+    {
+        xarray<double> arr
+            {-3.141593, -2.356194, -1.570796, -0.785398,  0.,
+             0.785398,  1.570796,  2.356194,  3.141593};
+        xarray<double> expected
+            {-180, -135, -90, -45, 0, 45, 90, 135, 180};
+        EXPECT_TRUE(all(isclose(expected, xt::degrees(arr))));
+    }
+
     /*************************
      * Exponential functions *
      *************************/
@@ -273,18 +335,12 @@ namespace xt
             auto fexp = exp(a);
             using assign_traits = xassign_traits<array_type, decltype(fexp)>;
 #if XTENSOR_USE_XSIMD
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_TRUE(assign_traits::simd_size());
-            EXPECT_FALSE(assign_traits::forbid_simd());
-            EXPECT_TRUE(assign_traits::simd_assign());
+            EXPECT_TRUE(assign_traits::simd_linear_assign());
 #else
             // SFINAE on load_simd is broken on mingw when xsimd is disabled. This using
             // triggers the same error as the one caught by mingw.
             using return_type = decltype(fexp.template load_simd<aligned_mode>(std::size_t(0)));
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_FALSE(assign_traits::simd_size());
-            EXPECT_TRUE(assign_traits::forbid_simd());
-            EXPECT_FALSE(assign_traits::simd_assign());
+            EXPECT_FALSE(assign_traits::simd_linear_assign());
             EXPECT_TRUE((std::is_same<return_type, double>::value));
 #endif
         }
@@ -294,18 +350,12 @@ namespace xt
             auto fpow = pow(a, a);
             using assign_traits = xassign_traits<array_type, decltype(fpow)>;
 #if XTENSOR_USE_XSIMD
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_TRUE(assign_traits::simd_size());
-            EXPECT_FALSE(assign_traits::forbid_simd());
-            EXPECT_TRUE(assign_traits::simd_assign());
+            EXPECT_TRUE(assign_traits::simd_linear_assign());
 #else
             // SFINAE on load_simd is broken on mingw when xsimd is disabled. This using
             // triggers the same error as the one caught by mingw.
             using return_type = decltype(fpow.template load_simd<aligned_mode>(std::size_t(0)));
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_FALSE(assign_traits::simd_size());
-            EXPECT_TRUE(assign_traits::forbid_simd());
-            EXPECT_FALSE(assign_traits::simd_assign());
+            EXPECT_FALSE(assign_traits::simd_linear_assign());
             EXPECT_TRUE((std::is_same<return_type, double>::value));
 #endif
         }
@@ -315,18 +365,12 @@ namespace xt
             auto ffma = xt::fma(a, a, a);
             using assign_traits = xassign_traits<array_type, decltype(ffma)>;
 #if XTENSOR_USE_XSIMD
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_TRUE(assign_traits::simd_size());
-            EXPECT_FALSE(assign_traits::forbid_simd());
-            EXPECT_TRUE(assign_traits::simd_assign());
+            EXPECT_TRUE(assign_traits::simd_linear_assign());
 #else
             // SFINAE on load_simd is broken on mingw when xsimd is disabled. This using
             // triggers the same error as the one caught by mingw.
             using return_type = decltype(ffma.template load_simd<aligned_mode>(std::size_t(0)));
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_FALSE(assign_traits::simd_size());
-            EXPECT_TRUE(assign_traits::forbid_simd());
-            EXPECT_FALSE(assign_traits::simd_assign());
+            EXPECT_FALSE(assign_traits::simd_linear_assign());
             EXPECT_TRUE((std::is_same<return_type, double>::value));
 #endif
         }
@@ -412,10 +456,7 @@ namespace xt
 
 #if XTENSOR_USE_XSIMD
         using assign_traits = xassign_traits<xarray<double>, decltype(f)>;
-        EXPECT_TRUE(assign_traits::convertible_types());
-        EXPECT_TRUE(assign_traits::simd_size());
-        EXPECT_FALSE(assign_traits::forbid_simd());
-        EXPECT_TRUE(assign_traits::simd_assign());
+        EXPECT_TRUE(assign_traits::simd_linear_assign());
 #endif
     }
 
@@ -451,10 +492,7 @@ namespace xt
 
 #if XTENSOR_USE_XSIMD
         using assign_traits = xassign_traits<xarray<double>, decltype(f)>;
-        EXPECT_TRUE(assign_traits::convertible_types());
-        EXPECT_TRUE(assign_traits::simd_size());
-        EXPECT_FALSE(assign_traits::forbid_simd());
-        EXPECT_TRUE(assign_traits::simd_assign());
+        EXPECT_TRUE(assign_traits::simd_linear_assign());
 #endif
 
     }
@@ -741,7 +779,7 @@ namespace xt
     {
         xarray<double> a = {{1, 2, 3, 4}, {0, 0, 0, 0}, {3, 0, 1, 0}};
         std::size_t as = count_nonzero(a)();
-        std::size_t ase = count_nonzero(a, evaluation_strategy::immediate())();
+        std::size_t ase = count_nonzero(a, evaluation_strategy::immediate)();
         EXPECT_EQ(as, 6u);
         EXPECT_EQ(ase, 6u);
 
@@ -751,11 +789,11 @@ namespace xt
         EXPECT_EQ(count_nonzero(a, {0}), ea0);
         EXPECT_EQ(count_nonzero(a, {1}), ea1);
 
-        EXPECT_EQ(count_nonzero(a, {0}, evaluation_strategy::immediate()), ea0);
-        EXPECT_EQ(count_nonzero(a, {1}, evaluation_strategy::immediate()), ea1);
+        EXPECT_EQ(count_nonzero(a, {0}, evaluation_strategy::immediate), ea0);
+        EXPECT_EQ(count_nonzero(a, {1}, evaluation_strategy::immediate), ea1);
 
         a = random::randint<int>({5, 5, 5, 5, 5}, 10);
-        auto lm = count_nonzero(a, {0, 1, 3}, evaluation_strategy::immediate());
+        auto lm = count_nonzero(a, {0, 1, 3}, evaluation_strategy::immediate);
         auto lz = count_nonzero(a, {0, 1, 3});
         EXPECT_EQ(lm, lz);
     }
@@ -779,6 +817,17 @@ namespace xt
         EXPECT_EQ(xt::diff(c, 1), expected6);
         xt::xarray<bool> expected7({2, 1}, false);
         EXPECT_EQ(xt::diff(c, 2), expected7);
+
+        std::vector<int> d = { 1, 2, 4, 7, 0 };
+        xt::xarray<int> orig = { 1, 2, 4, 7, 0 };
+        auto ad = xt::adapt(d);
+        EXPECT_EQ(xt::diff(ad), expected1);
+        EXPECT_EQ(ad, orig);
+
+        xt::xarray<int> e = {1, 2};
+        auto expected8 = xt::xarray<int>::from_shape({0});
+        EXPECT_EQ(xt::diff(e, 2), expected8);
+        EXPECT_EQ(xt::diff(e, 5), expected8);
     }
 
     TEST(xmath, trapz)
@@ -821,5 +870,14 @@ namespace xt
         {
             EXPECT_EQ(f[i], x[i]);
         }
+    }
+
+    TEST(xmath, cov)
+    {
+        xt::xarray<double> x = {0.0, 1.0, 2.0};
+        xt::xarray<double> y = {2.0, 1.0, 0.0};
+        xt::xarray<double> expected = {{1.0, -1.0}, {-1.0, 1.0}};
+
+        EXPECT_EQ(expected, xt::cov(x, y));
     }
 }

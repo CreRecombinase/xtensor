@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -34,6 +35,33 @@ namespace xt
     class fixed_shape;
 
     using xindex = dynamic_shape<std::size_t>;
+    
+    template <class S1, class S2>
+    bool same_shape(const S1& s1, const S2& s2) noexcept;
+
+    template <class U>
+    struct initializer_dimension;
+
+    template <class R, class T>
+    constexpr R shape(T t);
+
+    template<class R = std::size_t, class T, std::size_t N>
+    xt::static_shape<R, N> shape(const T(&aList)[N]);
+
+    template <class S>
+    struct static_dimension;
+
+    template <layout_type L, class S>
+    struct select_layout;
+
+    template <class... S>
+    struct promote_shape;
+
+    template <class... S>
+    struct promote_strides;
+
+    template <class S>
+    struct index_from_shape;
 }
 
 namespace xtl
@@ -64,10 +92,92 @@ namespace xtl
 
 namespace xt
 {
+    /**************
+     * same_shape *
+     **************/
 
-    /***********************************
-     * static_dimension implementation *
-     ***********************************/
+    template <class S1, class S2>
+    inline bool same_shape(const S1& s1, const S2& s2) noexcept
+    {
+        return s1.size() == s2.size() && std::equal(s1.begin(), s1.end(), s2.begin());
+    }
+
+    /*************************
+     * initializer_dimension *
+     *************************/
+
+    namespace detail
+    {
+        template <class U>
+        struct initializer_depth_impl
+        {
+            static constexpr std::size_t value = 0;
+        };
+
+        template <class T>
+        struct initializer_depth_impl<std::initializer_list<T>>
+        {
+            static constexpr std::size_t value = 1 + initializer_depth_impl<T>::value;
+        };
+    }
+
+    template <class U>
+    struct initializer_dimension
+    {
+        static constexpr std::size_t value = detail::initializer_depth_impl<U>::value;
+    };
+
+    /*********************
+     * initializer_shape *
+     *********************/
+
+    namespace detail
+    {
+        template <std::size_t I>
+        struct initializer_shape_impl
+        {
+            template <class T>
+            static constexpr std::size_t value(T t)
+            {
+                return t.size() == 0 ? 0 : initializer_shape_impl<I - 1>::value(*t.begin());
+            }
+        };
+
+        template <>
+        struct initializer_shape_impl<0>
+        {
+            template <class T>
+            static constexpr std::size_t value(T t)
+            {
+                return t.size();
+            }
+        };
+
+        template <class R, class U, std::size_t... I>
+        constexpr R initializer_shape(U t, std::index_sequence<I...>)
+        {
+            using size_type = typename R::value_type;
+            return {size_type(initializer_shape_impl<I>::value(t))...};
+        }
+    }
+
+    template <class R, class T>
+    constexpr R shape(T t)
+    {
+        return detail::initializer_shape<R, decltype(t)>(t, std::make_index_sequence<initializer_dimension<decltype(t)>::value>());
+    }
+
+    /** @brief Generate an xt::static_shape of the given size. */
+    template<class R, class T, std::size_t N>
+    xt::static_shape<R, N> shape(const T(&list)[N]) {
+        xt::static_shape<R, N> shape;
+        std::copy(std::begin(list), std::end(list), std::begin(shape));
+        return shape;
+    }
+
+    /********************
+     * static_dimension *
+     ********************/
 
     namespace detail
     {
@@ -200,15 +310,14 @@ namespace xt
         };
 
         template <class S>
-        struct is_fixed
+        struct is_fixed : std::false_type
         {
-            static constexpr bool value = false;
         };
 
         template <std::size_t... N>
         struct is_fixed<fixed_shape<N...>>
+            : std::true_type
         {
-            static constexpr bool value = true;
         };
 
         template <class S>
@@ -230,6 +339,9 @@ namespace xt
         template <class... S>
         using only_fixed = std::integral_constant<bool, xtl::disjunction<is_fixed<S>...>::value &&
                                                         xtl::conjunction<xtl::disjunction<is_fixed<S>, is_scalar_shape<S>>...>::value>;
+
+        template <class... S>
+        using all_fixed = xtl::conjunction<is_fixed<S>...>;
 
         // The promote_index meta-function returns std::vector<promoted_value_type> in the
         // general case and an array of the promoted value type and maximal size if all
@@ -327,44 +439,31 @@ namespace xt
     }
 
     template <class... S>
-    using promote_shape_t = typename detail::promote_index<S...>::type;
+    struct promote_shape
+    {
+        using type = typename detail::promote_index<S...>::type;
+    };
 
     template <class... S>
-    using promote_strides_t = typename detail::promote_index<S...>::type;
+    using promote_shape_t = typename promote_shape<S...>::type;
+
+    template <class... S>
+    struct promote_strides
+    {
+        using type = typename detail::promote_index<S...>::type;
+    };
+
+    template <class... S>
+    using promote_strides_t = typename promote_strides<S...>::type;
 
     template <class S>
-    using index_from_shape_t = typename detail::index_from_shape_impl<S>::type;
+    struct index_from_shape
+    {
+        using type = typename detail::index_from_shape_impl<S>::type;
+    };
 
-    /**
-     * Deduce the common value type of underlying containers
-     */
-    template <class... C>
-    struct common_value_type {
-        using type = std::common_type_t<typename std::decay_t<C>::value_type...>;
-    };
-    template <class... C>
-    using common_value_type_t = typename common_value_type<C...>::type;
-
-    /**
-     * Deduce the common xtensor type
-     */
-    template <class T, class S>
-    struct common_tensor_impl {
-        using type = xarray<T>;
-    };
-    template <class T, class I, std::size_t N>
-    struct common_tensor_impl<T, std::array<I, N>> {
-        using type = xtensor<T, N>;
-    };
-    template <class T, std::size_t... I>
-    struct common_tensor_impl<T, fixed_shape<I...>> {
-        using type = xt::xtensor_fixed<T, xt::fixed_shape<I...>>;
-    };
-    template <class... C>
-    struct common_tensor : common_tensor_impl<common_value_type_t<C...>, promote_shape_t<typename C::shape_type...>> { };
-
-    template <class... C>
-    using common_tensor_t = typename common_tensor<std::decay_t<C>...>::type;
+    template <class S>
+    using index_from_shape_t = typename index_from_shape<S>::type;
 }
 
 #endif

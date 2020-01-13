@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -138,7 +139,7 @@ namespace xt
 
         std::stringstream out;
         out << (rn > 0);
-        std::string res = (XTENSOR_DEFAULT_LAYOUT == layout_type::row_major) ? bool_fn_rm : bool_fn_cm;
+        std::string res = bool_fn;
         EXPECT_EQ(res, out.str());
     }
 
@@ -308,6 +309,17 @@ namespace xt
         std::stringstream out;
         out << von;
         std::string exp = "{1, 1, 1, 1, 1}";
+        EXPECT_EQ(exp, out.str());
+    }
+
+    TEST(xio, flags_reset)
+    {
+        xt::xarray<double> aod = {123400000., 123400000.};
+        std::stringstream out;
+        out << aod;
+        double d = 2.119;
+        out << '\n' << d;
+        std::string exp = "{ 1.234000e+08,  1.234000e+08}\n2.119";
         EXPECT_EQ(exp, out.str());
     }
 }

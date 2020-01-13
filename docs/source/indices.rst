@@ -66,7 +66,7 @@ which prints
      {2, 2},
      {2, 3}}
 
-Here we observe that to work print we need to convert the ``std::vector`` to a ``xt::xtensor<size_t, 2>`` array, which is done using ``xt::from_indices``.
+To print the ``std::vector``, it is converted to a ``xt::xtensor<size_t, 2>`` array, which is done using ``xt::from_indices``.
 
 From array indices to flat indices
 ----------------------------------
@@ -136,7 +136,7 @@ which print the indices and the selection (which are in this case identical):
 From flat indices to array indices
 ----------------------------------
 
-To convert *flat indices* to *array_indices* the function ``xt::ravel_indices`` can be used. For example
+To convert *flat indices* to *array_indices* the function ``xt::unravel_indices`` can be used. For example
 
 .. code-block:: cpp
 

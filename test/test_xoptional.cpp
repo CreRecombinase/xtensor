@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -28,6 +29,30 @@ namespace xt
         ASSERT_EQ(m(1, 0).value(), 3.0);
         ASSERT_FALSE(m(1, 1).has_value());
         ASSERT_EQ((m[{0, 0}].value()), 1.0);
+    }
+
+    TEST(xoptional, adaptor)
+    {
+        using vtype = xtl::xoptional_vector<double>;
+        vtype v(4, 0.);
+        v[0] = 1.;
+        v[1] = 2.;
+        v[2] = 3.;
+        v[3] = xtl::missing<double>();
+
+        using tadaptor = xtensor_adaptor<vtype&, 2, layout_type::row_major, xoptional_expression_tag>;
+        tadaptor ta(v, {2, 2});
+        ASSERT_EQ(ta(0, 0).value(), 1.0);
+        ASSERT_EQ(ta(1, 0).value(), 3.0);
+        ASSERT_FALSE(ta(1, 1).has_value());
+        ASSERT_EQ((ta[{0, 0}].value()), 1.0);
+
+        using aadaptor = xarray_adaptor<vtype&, layout_type::row_major, dynamic_shape<std::size_t>, xoptional_expression_tag>;
+        aadaptor aa(v, {2, 2});
+        ASSERT_EQ(aa(0, 0).value(), 1.0);
+        ASSERT_EQ(aa(1, 0).value(), 3.0);
+        ASSERT_FALSE(aa(1, 1).has_value());
+        ASSERT_EQ((aa[{0, 0}].value()), 1.0);
     }
 
     TEST(xoptional, operation)
@@ -270,6 +295,12 @@ namespace xt
 
         reference operator()(point& p) const noexcept { return p.x(); }
         const_reference operator()(const point& p) const noexcept { return p.x(); }
+
+        // Compilation trick: a functor view on xarray_optional<point> expects the functor
+        // to provide operator() accepting reference and const_reference from xarray_optional<point>
+        // Since we never use these overloads, no need to declare the right one, nor to provide
+        // any implementation.
+        template <class T> T&& operator()(T&&) const noexcept;
     };
 
     TEST(xoptional, functor_view)

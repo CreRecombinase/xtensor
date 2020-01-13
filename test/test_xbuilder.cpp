@@ -1,12 +1,18 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
 * The full license is in the file LICENSE, distributed with this software. *
 ****************************************************************************/
 
+#ifdef _MSC_VER
+#define VS_SKIP_CONCATENATE_FIXED 1
+#endif
+
 #include "gtest/gtest.h"
+#include "test_common_macros.hpp"
 #include "xtensor/xbuilder.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xtensor.hpp"
@@ -91,6 +97,28 @@ namespace xt
         ASSERT_EQ(50, res(1, 49));
     }
 
+    TEST(xbuilder, arange_reshape)
+    {
+        auto rs0 = arange<double>(50).reshape({std::size_t(5), std::size_t(10)});
+        auto rs1 = arange<double>(50).reshape({-1, 10});
+
+        auto gen0 = arange<double>(50);
+        auto ls0 = gen0.reshape({std::size_t(5), std::size_t(10)});
+        auto gen1 = arange<double>(50);
+        auto ls1 = gen1.reshape({-1, 10});
+
+        decltype(ls0)::shape_type expected_shape = {5, 10};
+        EXPECT_EQ(rs0.shape(), expected_shape);
+        EXPECT_EQ(rs1.shape(), expected_shape);
+        EXPECT_EQ(ls0.shape(), expected_shape);
+        EXPECT_EQ(ls1.shape(), expected_shape);
+
+        EXPECT_EQ(rs0(4, 9), 49);
+        EXPECT_EQ(rs1(4, 9), 49);
+        EXPECT_EQ(ls0(4, 9), 49);
+        EXPECT_EQ(ls1(4, 9), 49);
+    }
+
     TEST(xbuilder, arange_min_max)
     {
         auto ls = arange<unsigned int>(10u, 20u);
@@ -145,6 +173,33 @@ namespace xt
         ASSERT_EQ(l4[{3}], 9);
     }
 
+    TEST(xbuilder, arange_reverse)
+    {
+        auto a0 = arange(6, 5, -1);
+        EXPECT_EQ(a0.dimension(), size_t(1));
+        decltype(a0)::shape_type expected_shape0 = {1};
+        EXPECT_EQ(a0.shape(), expected_shape0);
+        EXPECT_EQ(a0(0), 6);
+
+        auto a1 = arange(8, 5, -1);
+        EXPECT_EQ(a1.dimension(), size_t(1));
+        decltype(a1)::shape_type expected_shape1 = {3};
+        EXPECT_EQ(a1.shape(), expected_shape1);
+        EXPECT_EQ(a1(0), 8);
+        EXPECT_EQ(a1(1), 7);
+        EXPECT_EQ(a1(2), 6);
+
+        auto a2 = arange(5, 6, -1);
+        EXPECT_EQ(a2.dimension(), size_t(1));
+        decltype(a2)::shape_type expected_shape2 = {0};
+        EXPECT_EQ(a2.shape(), expected_shape2);
+
+        auto a3 = arange(8, 5, 1);
+        EXPECT_EQ(a3.dimension(), size_t(1));
+        decltype(a3)::shape_type expected_shape3 = {0};
+        EXPECT_EQ(a3.shape(), expected_shape3);
+    }
+
     TEST(xbuilder, linspace)
     {
         auto ls = linspace<float>(20.f, 50.f);
@@ -163,6 +218,35 @@ namespace xt
         ASSERT_EQ(m_assigned[{0}], 20.f);
         ASSERT_EQ(m_assigned(49), 50.f);
         ASSERT_EQ(m_assigned(3), at_3);
+    }
+
+    TEST(xbuilder, linspace_reshape)
+    {
+        xarray<double> a = linspace<double>(20., 50.).reshape({5, 10});
+        EXPECT_EQ(a.dimension(), size_t(2));
+        decltype(a)::shape_type expected_shape = {5, 10};
+        EXPECT_EQ(a.shape(), expected_shape);
+        EXPECT_EQ(a(0, 0), 20.);
+        EXPECT_EQ(a(4, 9), 50.);
+    }
+
+    TEST(xbuilder, linspace_1_point)
+    {
+        xt::xarray<double> a = linspace<double>(0., 0., 1, false);
+        decltype(a)::shape_type expected_shape = {1};
+        EXPECT_EQ(a.dimension(), size_t(1));
+        EXPECT_EQ(a.shape(), expected_shape);
+        EXPECT_EQ(0., a(0));
+
+        xt::xarray<double> b = linspace<double>(0., 0., 1, true);
+        EXPECT_EQ(b.dimension(), size_t(1));
+        EXPECT_EQ(b.shape(), expected_shape);
+        EXPECT_EQ(0., b(0));
+
+        xt::xarray<double> c = linspace<double>(0., 2., 1, true);
+        EXPECT_EQ(c.dimension(), size_t(1));
+        EXPECT_EQ(c.shape(), expected_shape);
+        EXPECT_EQ(0., b(0));
     }
 
     TEST(xbuilder, linspace_n_samples_endpoint)
@@ -268,7 +352,60 @@ namespace xt
 
         auto t = concatenate(xtuple(arange(2), arange(2, 5), arange(5, 8)));
         ASSERT_TRUE(arange(8) == t);
+        
+        xt::xarray<double> fa = xt::ones<double>({ 3, 4, 5, 0 });
+        xt::xarray<double> sa = xt::ones<double>({ 3, 4, 5 });
+        xt::xarray<double> ta = xt::ones<double>({ 3, 4, 5, 3 });
+
+        XT_EXPECT_ANY_THROW(xt::concatenate(xt::xtuple(fa, sa)));
+        XT_EXPECT_ANY_THROW(xt::concatenate(xt::xtuple(fa, ta)));
     }
+
+    template <std::size_t... I, std::size_t... J>
+    bool operator==(fixed_shape<I...>, fixed_shape<J...>)
+    {
+        std::array<std::size_t, sizeof...(I)> ix = {I...};
+        std::array<std::size_t, sizeof...(J)> jx = {J...};
+        return sizeof...(J) == sizeof...(I) && std::equal(ix.begin(), ix.end(), jx.begin());
+    }
+
+#ifndef VS_SKIP_CONCATENATE_FIXED
+    // This test mimics the relevant parts of `TEST(xbuilder, concatenate)`
+    TEST(xbuilder, concatenate_fixed)
+    {
+        xtensor_fixed<double, fixed_shape<2, 2, 3>> a = {{{0, 1, 2}, {3, 4, 5}}, {{6, 7, 8}, {9, 10, 11}}};
+
+        auto c = concatenate<2>(xtuple(a, a, a));
+
+        using expected_shape_c_t = fixed_shape<2, 2, 9>;
+        ASSERT_EQ(expected_shape_c_t{}, c.shape());
+        ASSERT_EQ(c(1, 1, 2), c(1, 1, 5));
+        ASSERT_EQ(11, c(1, 1, 2));
+        ASSERT_EQ(11, c(1, 1, 5));
+
+        xtensor_fixed<double, fixed_shape<1, 3>> e = {{1, 2, 3}}, f = {{2, 3, 4}};
+        auto k = concatenate<0>(xtuple(e, f));
+        auto l = concatenate<1>(xtuple(e, f));
+
+        using expected_shape_k_t = fixed_shape<2, 3>;
+        using expected_shape_l_t = fixed_shape<1, 6>;
+        ASSERT_EQ(expected_shape_k_t{}, k.shape());
+        ASSERT_EQ(expected_shape_l_t{}, l.shape());
+        ASSERT_EQ(4, k(1, 2));
+        ASSERT_EQ(3, l(0, 2));
+        ASSERT_EQ(3, l(0, 4));
+
+        xtensor_fixed<double, fixed_shape<2>> x = arange(2);
+        xtensor_fixed<double, fixed_shape<3>> y = arange(2, 5);
+        xtensor_fixed<double, fixed_shape<3>> z = arange(5, 8);
+
+        auto w1 = concatenate<0>(xtuple(x, y, z));
+        auto w2 = concatenate(xtuple(x, y, z), 0);
+
+        ASSERT_TRUE(arange(8) == w1);
+        ASSERT_TRUE(w1 == w2);
+    }
+#endif
 
     TEST(xbuilder, access)
     {
@@ -313,6 +450,52 @@ namespace xt
         auto t = stack(xtuple(arange(3), arange(3, 6), arange(6, 9)));
         xarray<double> ar = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}};
         ASSERT_TRUE(t == ar);
+    }
+
+    TEST(xbuilder, hstack)
+    {
+        xarray<int> a0 = {1, 2, 3};
+        xarray<int> b0 = {2, 3, 4};
+        xarray<int> e0 = {1, 2, 3, 2, 3, 4};
+        auto c0 = hstack(xtuple(a0, b0));
+        EXPECT_EQ(c0, e0);
+
+        xarray<int> a1 = a0;
+        a1.reshape({3, 1});
+        xarray<int> b1 = b0;
+        b1.reshape({3, 1});
+        xarray<int> e1 = {{1, 2}, {2, 3}, {3, 4}};
+        auto c1 = hstack(xtuple(a1, b1));
+        EXPECT_EQ(c1, e1);
+
+        xarray<int> a2 = {{1, 2, 3}, {4, 5 ,6}};
+        xarray<int> b2 = {{7, 8}, {9, 10}};
+        xarray<int> e2 = {{1, 2, 3, 7, 8}, {4, 5, 6, 9, 10}};
+        auto c2 = hstack(xtuple(a2, b2));
+    }
+
+    TEST(xbuilder, vstack)
+    {
+        xarray<int> a0 = {1, 2, 3};
+        xarray<int> b0 = {2, 3, 4};
+        xarray<int> e0 = {{1, 2, 3}, {2, 3, 4}};
+        auto c0 = vstack(xtuple(a0, b0));
+        EXPECT_EQ(c0, e0);
+
+        xarray<int> a1 = a0;
+        a1.reshape({3, 1});
+        xarray<int> b1 = b0;
+        b1.reshape({3, 1});
+        xarray<int> e1 = { 1, 2, 3, 2, 3, 4 };
+        e1.reshape({6, 1});
+        auto c1 = vstack(xtuple(a1, b1));
+        EXPECT_EQ(c1, e1);
+
+        xarray<int> a2 = {{1, 2, 3}, {4, 5 ,6}, {7, 8, 9}};
+        xarray<int> b2 = {{10, 11, 12}};
+        xarray<int> e2 = {{1, 2, 3}, {4, 5 ,6}, {7, 8, 9}, {10, 11, 12}};
+        auto c2 = vstack(xtuple(a2, b2));
+        EXPECT_EQ(c2, e2);
     }
 
     TEST(xbuilder, meshgrid)
@@ -500,5 +683,12 @@ namespace xt
         EXPECT_TRUE(b);
         b = std::is_same<decltype(ed3), xarray<double>>::value;
         EXPECT_TRUE(b);
+    }
+
+    TEST(xbuilder, linspace_double)
+    {
+        xt::xarray<double> a = xt::linspace(0., 100.);
+        auto b = xt::linspace(0., 100.);
+        EXPECT_EQ(a, b);
     }
 }

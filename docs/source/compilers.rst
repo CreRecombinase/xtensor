@@ -43,6 +43,13 @@ Visual Studio 2017 (15.7.1) seeing declarations as extra overloads
 
 In ``xvectorize.hpp``, Visual Studio 15.7.1 sees the forward declaration of ``vectorize(E&&)`` as a separate ovarload.
 
+Visual Studio 2017 double non-class parameter pack expansion
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``xfixed.hpp`` we add a level of indirection to expand one parameter pack before the other.
+Not doing this results in VS2017 complaining about a parameter pack that needs to be expanded in this
+context while it actually is.
+
 GCC-4.9 and Clang < 3.8 and constexpr ``std::min`` and ``std::max``
 -------------------------------------------------------------------
 
@@ -105,4 +112,11 @@ strided view on a dynamic_view errors with a message: use of deleted function.
 It should pick the *other* implementation by SFINAE on the function
 signature, because our ``has_strides<dynamic_view>`` meta-function should return
 false. Instantiating the ``has_strides<dynamic_view>`` in the inner_types fixes the issue.
-Original issue here: https://github.com/QuantStack/xtensor/issues/1273
+Original issue here: https://github.com/xtensor-stack/xtensor/issues/1273
+
+Apple LLVM version >= 8.0.0
+---------------------------
+
+``tuple_cat`` is bugged and propagates the constness of its tuple arguments to the types
+inside the tuple. When checking if the resulting tuple contains a given type, the const
+qualified type also needs to be checked.

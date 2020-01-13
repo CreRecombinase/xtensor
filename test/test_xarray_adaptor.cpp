@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -110,12 +111,14 @@ namespace xt
         test_reshape(a);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xarray_adaptor, access)
     {
         vec_type v;
         adaptor_type a(v);
         test_access(a);
     }
+#endif
 
     TEST(xarray_adaptor, unchecked)
     {
@@ -184,5 +187,17 @@ namespace xt
         EXPECT_EQ(ad(1, 1), 5.);
         ad = ad * 2;
         EXPECT_EQ(ad(1, 1), 10.);
+    }
+
+    TEST(xarray_adaptor, iterator_types)
+    {
+        using vec_type = std::vector<int>;
+        using array_type = xarray_adaptor<vec_type>;
+        using const_array_type = xarray_adaptor<const vec_type>;
+        using iterator = vec_type::iterator;
+        using const_iterator = vec_type::const_iterator;
+
+        test_iterator_types<array_type, iterator, const_iterator>();
+        test_iterator_types<const_array_type, const_iterator, const_iterator>();
     }
 }

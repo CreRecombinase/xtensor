@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -200,7 +201,7 @@ namespace xt
         {
             SCOPED_TRACE("incompatible shapes");
             shape_type s4 = {2, 1, 3, 2};
-            EXPECT_THROW(a.broadcast_shape(s4), broadcast_error);
+            XT_EXPECT_THROW(a.broadcast_shape(s4), broadcast_error);
         }
 
         {

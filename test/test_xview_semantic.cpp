@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -459,6 +460,6 @@ namespace xt
         container_2d res = { { 11, 12, 13 }, { 4, 5, 6 } };
 
         auto viewa = view(a, 0, all());
-        EXPECT_ANY_THROW(viewa = b);
+        XT_EXPECT_ANY_THROW(viewa = b);
     }
 }

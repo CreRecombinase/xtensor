@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -62,7 +63,8 @@ namespace xt
         using const_pointer = typename storage_type::const_pointer;
         using size_type = typename raw_value_expression::size_type;
         using difference_type = typename raw_value_expression::difference_type;
-        using simd_value_type = xsimd::simd_type<value_type>;
+        using simd_value_type = xt_simd::simd_type<value_type>;
+        using bool_load_type = xt::bool_load_type<value_type>;
 
         using shape_type = typename raw_value_expression::shape_type;
         using strides_type = typename raw_value_expression::strides_type;
@@ -115,8 +117,8 @@ namespace xt
 
         size_type size() const noexcept;
         constexpr size_type dimension() const noexcept;
-
         const inner_shape_type& shape() const noexcept;
+        size_type shape(size_type index) const;
         const inner_strides_type& strides() const noexcept;
         const inner_backstrides_type& backstrides() const noexcept;
 
@@ -128,9 +130,13 @@ namespace xt
         void resize(const S& shape, const strides_type& strides);
 
         template <class S = shape_type>
-        void reshape(const S& shape, layout_type layout = static_layout);
+        auto & reshape(const S& shape, layout_type layout = static_layout) &;
+
+        template <class T>
+        auto & reshape(std::initializer_list<T> shape, layout_type layout = static_layout) &;
 
         layout_type layout() const noexcept;
+        bool is_contiguous() const noexcept;
 
         template <class T>
         void fill(const T& value);
@@ -165,10 +171,19 @@ namespace xt
         const_reference operator[](std::initializer_list<I> index) const;
         const_reference operator[](size_type i) const;
 
+        template <class... Args>
+        reference periodic(Args... args);
+
+        template <class... Args>
+        const_reference periodic(Args... args) const;
+
         template <class It>
         reference element(It first, It last);
         template <class It>
         const_reference element(It first, It last) const;
+
+        template <class... Args>
+        bool in_bounds(Args... args) const;
 
         storage_type& storage() noexcept;
         const storage_type& storage() const noexcept;
@@ -330,6 +345,15 @@ namespace xt
     }
 
     /**
+     * Returns the i-th dimension of the expression.
+     */
+    template <class D>
+    inline auto xoptional_assembly_base<D>::shape(size_type i) const -> size_type
+    {
+        return value().shape(i);
+    }
+
+    /**
      * Returns the strides of the optional assembly.
      */
     template <class D>
@@ -394,10 +418,20 @@ namespace xt
      */
     template <class D>
     template <class S>
-    inline void xoptional_assembly_base<D>::reshape(const S& shape, layout_type layout)
+    inline auto & xoptional_assembly_base<D>::reshape(const S& shape, layout_type layout) &
     {
         value().reshape(shape, layout);
         has_value().reshape(shape, layout);
+        return *this;
+    }
+
+    template <class D>
+    template <class T>
+    inline auto & xoptional_assembly_base<D>::reshape(std::initializer_list<T> shape, layout_type layout) &
+    {
+        value().reshape(shape, layout);
+        has_value().reshape(shape, layout);
+        return *this;
     }
 
     /**
@@ -408,6 +442,12 @@ namespace xt
     inline layout_type xoptional_assembly_base<D>::layout() const noexcept
     {
         return value().layout();
+    }
+
+    template <class D>
+    inline bool xoptional_assembly_base<D>::is_contiguous() const noexcept
+    {
+        return value().is_contiguous();
     }
 
     /**
@@ -592,6 +632,34 @@ namespace xt
     }
 
     /**
+     * Returns a reference to the element at the specified position in the optional assembly,
+     * after applying periodicity to the indices (negative and 'overflowing' indices are changed).
+     * @param args a list of indices specifying the position in the optional assembly. Indices
+     * must be unsigned integers, the number of indices should be equal to the number of dimensions
+     * of the optional assembly.
+     */
+    template <class D>
+    template <class... Args>
+    inline auto xoptional_assembly_base<D>::periodic(Args... args) -> reference
+    {
+        return reference(value().periodic(args...), has_value().periodic(args...));
+    }
+
+    /**
+     * Returns a constant reference to the element at the specified position in the optional assembly,
+     * after applying periodicity to the indices (negative and 'overflowing' indices are changed).
+     * @param args a list of indices specifying the position in the optional assembly. Indices
+     * must be unsigned integers, the number of indices should be equal to the number of dimensions
+     * of the optional assembly.
+     */
+    template <class D>
+    template <class... Args>
+    inline auto xoptional_assembly_base<D>::periodic(Args... args) const -> const_reference
+    {
+        return const_reference(value().periodic(args...), has_value().periodic(args...));
+    }
+
+    /**
      * Returns a reference to the element at the specified position in the optional assembly.
      * @param first iterator starting the sequence of indices
      * @param last iterator ending the sequence of indices
@@ -617,6 +685,18 @@ namespace xt
     inline auto xoptional_assembly_base<D>::element(It first, It last) const -> const_reference
     {
         return const_reference(value().element(first, last), has_value().element(first, last));
+    }
+
+    /**
+     * Returns ``true`` only if the the specified position is a valid entry in the expression.
+     * @param args a list of indices specifying the position in the expression.
+     * @return bool
+     */
+    template <class D>
+    template <class... Args>
+    inline bool xoptional_assembly_base<D>::in_bounds(Args... args) const
+    {
+        return value().in_bounds(args...) && has_value().in_bounds(args...);
     }
     //@}
 

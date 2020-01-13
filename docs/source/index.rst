@@ -69,6 +69,20 @@ for details.
    builder
    missing
    file_loading
+   build-options
+   pitfall
+
+.. toctree::
+   :caption: QUICK REFERENCE
+   :maxdepth: 2
+
+   quickref/basic
+   quickref/builder
+   quickref/operator
+   quickref/math
+   quickref/reducer
+   view
+   quickref/manipulation
 
 .. toctree::
    :caption: API REFERENCE
@@ -85,7 +99,7 @@ for details.
    :maxdepth: 2
 
    compilers
-   build-options
+   dev-build-options
    developer/xtensor_internals
    external-structures
    releasing
@@ -102,4 +116,4 @@ for details.
 .. _NumPy: http://www.numpy.org
 .. _Buffer Protocol: https://docs.python.org/3/c-api/buffer.html
 .. _libdynd: http://libdynd.org
-.. _xtensor-python: https://github.com/QuantStack/xtensor-python
+.. _xtensor-python: https://github.com/xtensor-stack/xtensor-python

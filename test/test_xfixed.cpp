@@ -1,12 +1,13 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
 * The full license is in the file LICENSE, distributed with this software. *
 ****************************************************************************/
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #define VS_SKIP_XFIXED 1
 #endif
 
@@ -15,7 +16,7 @@
 #ifndef VS_SKIP_XFIXED
 
 #include "gtest/gtest.h"
-
+#include "test_common_macros.hpp"
 #include "xtensor/xadapt.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xfixed.hpp"
@@ -84,13 +85,13 @@ namespace xt
 #endif
 
 #ifdef XTENSOR_ENABLE_ASSERT
-        EXPECT_THROW(a.resize({2, 2}), std::runtime_error);
+        XT_EXPECT_THROW(a.resize({2, 2}), std::runtime_error);
 #endif
         // reshaping fixed container
-        EXPECT_THROW(a.reshape({{1, 9}}), std::runtime_error);
-        EXPECT_NO_THROW(a.reshape({3, 4}));
-        EXPECT_NO_THROW(a.reshape({3, 4}, XTENSOR_DEFAULT_LAYOUT));
-        EXPECT_THROW(a.reshape({3, 4}, layout_type::any), std::runtime_error);
+        XT_EXPECT_THROW(a.reshape({{1, 9}}), std::runtime_error);
+        XT_EXPECT_NO_THROW(a.reshape({3, 4}));
+        XT_EXPECT_NO_THROW(a.reshape({3, 4}, XTENSOR_DEFAULT_LAYOUT));
+        XT_EXPECT_THROW(a.reshape({3, 4}, layout_type::any), std::runtime_error);
     }
 
     TEST(xtensor_fixed, strides)
@@ -163,6 +164,14 @@ namespace xt
         EXPECT_EQ(a[0], 2);
     }
 
+    TEST(xtensor_fixed, buffer_adaptor)
+    {
+        xtensor_fixed<double, xshape<3>> a;
+        xtensor<double, 2> b = zeros<double>({3, 3});
+        auto c = adapt(&b(0, 0), xshape<3>());
+        c *= a;
+    }
+
     TEST(xtensor_fixed, layout)
     {
         xtensor_fixed<double, xshape<2, 2>, layout_type::row_major> a;
@@ -207,10 +216,10 @@ namespace xt
         T a = {{1,2,3,4}, {5,6,7,8}, {9,10,11,12}};
 
     #ifdef XTENSOR_ENABLE_ASSERT
-        EXPECT_THROW(T{{1}}, std::runtime_error);
-        EXPECT_THROW(check_shape_a(), std::runtime_error);
-        EXPECT_THROW(check_shape_b(), std::runtime_error);
-        EXPECT_THROW(check_shape_c(), std::runtime_error);
+        XT_EXPECT_THROW(T{{1}}, std::runtime_error);
+        XT_EXPECT_THROW(check_shape_a(), std::runtime_error);
+        XT_EXPECT_THROW(check_shape_b(), std::runtime_error);
+        XT_EXPECT_THROW(check_shape_c(), std::runtime_error);
     #endif
     }
 
@@ -284,6 +293,13 @@ namespace xt
         std::stringstream out;
         out << a + b;
         EXPECT_EQ("{1, 2}", out.str());
+    }
+
+    TEST(xtensor_fixed, nonsharable)
+    {
+        using fixed_tensor = xtensor_fixed<double, xshape<2>, layout_type::row_major, true>;
+        using tiny_tensor = xtensor_fixed<double, xshape<2>, layout_type::row_major, false>;
+        EXPECT_GT(sizeof(fixed_tensor), sizeof(tiny_tensor)); 
     }
 }
 

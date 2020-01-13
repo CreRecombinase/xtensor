@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -17,6 +18,7 @@
 #include <xtl/xtype_traits.hpp>
 
 #include "xstorage.hpp"
+#include "xtensor_config.hpp"
 #include "xutils.hpp"
 
 #ifndef XTENSOR_CONSTEXPR
@@ -779,14 +781,14 @@ namespace xt
     }
 
     /**
-     * Select a range from start_val to stop_val.
+     * Select a range from start_val to stop_val (excluded).
      * You can use the shorthand `_` syntax to select from the start or until the end.
      *
      * \code{.cpp}
      * using namespace xt::placeholders;  // to enable _ syntax
      *
      * range(3, _)  // select from index 3 to the end
-     * range(_, 5)  // select from index o to 5
+     * range(_, 5)  // select from index 0 to 5 (excluded)
      * range(_, _)  // equivalent to `all()`
      * \endcode
      *
@@ -800,7 +802,7 @@ namespace xt
     }
 
     /**
-     * Select a range from start_val to stop_val with step
+     * Select a range from start_val to stop_val (excluded) with step
      * You can use the shorthand `_` syntax to select from the start or until the end.
      *
      * \code{.cpp}
@@ -882,42 +884,82 @@ namespace xt
      * homogeneous get_slice_implementation *
      ****************************************/
 
+    namespace detail
+    {
+        template <class T>
+        struct slice_implementation_getter
+        {
+            template <class E, class SL>
+            inline decltype(auto) operator()(E&, SL&& slice, std::size_t) const
+            {
+                return std::forward<SL>(slice);
+            }
+        };
+
+        struct keep_drop_getter
+        {
+            template <class E, class SL>
+            inline decltype(auto) operator()(E& e, SL&& slice, std::size_t index) const
+            {
+                slice.normalize(e.shape()[index]);
+                return std::forward<SL>(slice);
+            }
+
+            template <class E, class SL>
+            inline auto operator()(E& e, const SL& slice, std::size_t index) const
+            {
+                return this->operator()(e, SL(slice), index);
+            }
+        };
+
+        template <class T>
+        struct slice_implementation_getter<xkeep_slice<T>>
+            : keep_drop_getter
+        {
+        };
+
+        template <class T>
+        struct slice_implementation_getter<xdrop_slice<T>>
+            : keep_drop_getter
+        {
+        };
+
+        template <>
+        struct slice_implementation_getter<xall_tag>
+        {
+            template <class E, class SL>
+            inline auto operator()(E& e, SL&&, std::size_t index) const
+            {
+                return xall<typename E::size_type>(e.shape()[index]);
+            }
+        };
+
+        template <>
+        struct slice_implementation_getter<xnewaxis_tag>
+        {
+            template <class E, class SL>
+            inline auto operator()(E&, SL&&, std::size_t) const
+            {
+                return xnewaxis<typename E::size_type>();
+            }
+        };
+
+        template <class A, class B, class C>
+        struct slice_implementation_getter<xrange_adaptor<A, B, C>>
+        {
+            template <class E, class SL>
+            inline auto operator()(E& e, SL&& adaptor, std::size_t index) const
+            {
+                return adaptor.get(e.shape()[index]);
+            }
+        };
+    }
+
     template <class E, class SL>
-    inline auto get_slice_implementation(E& /*e*/, SL&& slice, std::size_t /*index*/)
+    inline auto get_slice_implementation(E& e, SL&& slice, std::size_t index)
     {
-        return std::forward<SL>(slice);
-    }
-
-    template <class E, class T>
-    inline auto get_slice_implementation(E& e, xkeep_slice<T>&& slice, std::size_t index)
-    {
-        slice.normalize(e.shape()[index]);
-        return slice;
-    }
-
-    template <class E, class T>
-    inline auto get_slice_implementation(E& e, xdrop_slice<T>&& slice, std::size_t index)
-    {
-        slice.normalize(e.shape()[index]);
-        return slice;
-    }
-
-    template <class E>
-    inline auto get_slice_implementation(E& e, xall_tag&&, std::size_t index)
-    {
-        return xall<typename E::size_type>(e.shape()[index]);
-    }
-
-    template <class E>
-    inline auto get_slice_implementation(E& /*e*/, xnewaxis_tag&&, std::size_t /*index*/)
-    {
-        return xnewaxis<typename E::size_type>();
-    }
-
-    template <class E, class A, class B, class C>
-    inline auto get_slice_implementation(E& e, xrange_adaptor<A, B, C>&& adaptor, std::size_t index)
-    {
-        return adaptor.get(e.shape()[index]);
+        detail::slice_implementation_getter<std::decay_t<SL>> getter;
+        return getter(e, std::forward<SL>(slice), index);
     }
 
     /******************************
@@ -1356,7 +1398,8 @@ namespace xt
         }
         else
         {
-            throw std::runtime_error("Index i (" + std::to_string(i) + ") not in indices of islice.");
+            XTENSOR_THROW(std::runtime_error,
+                          "Index i (" + std::to_string(i) + ") not in indices of islice.");
         }
     }
 

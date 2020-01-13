@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -7,6 +8,7 @@
 ****************************************************************************/
 
 #include "gtest/gtest.h"
+#include "test_common_macros.hpp"
 #include "xtensor/xbuffer_adaptor.hpp"
 
 namespace xt
@@ -68,6 +70,43 @@ namespace xt
         adapt1 = std::move(adapt2);
         EXPECT_EQ(adapt1.size(), size2);
         EXPECT_EQ(adapt1[0], data2_ref);
+    }
+
+    class size_check_allocator: public std::allocator<size_t>
+    {
+     public:
+      size_t* allocate(size_t n, const void *hint=0)
+      {
+        size_t* res = std::allocator<size_t>::allocate(n, hint);
+        // store the size into the result so we can
+        // check if the size is correct when we deallocate.
+        res[0] = n;
+        return res;
+      }
+
+      void deallocate(size_t* p, size_t n)
+      {
+        EXPECT_EQ(p[0], n);
+        return std::allocator<size_t>::deallocate(p, n);
+      }
+    };
+
+    TEST(xbuffer_adaptor, owner_move_assign_check_size)
+    {
+        size_check_allocator custom_allocator;
+        using owner_adaptor = xbuffer_adaptor<size_t*&,
+                                              acquire_ownership,
+                                              size_check_allocator>;
+        size_t size1 = 100;
+        size_t* data1 = custom_allocator.allocate(size1);
+        owner_adaptor adapt1(data1, size1);
+
+        size_t size2 = 200;
+        size_t* data2 = custom_allocator.allocate(size2);
+        owner_adaptor adapt2(data2, size2);
+
+        adapt1 = adapt2;
+        EXPECT_EQ(adapt1.size(), size2);
     }
 
     TEST(xbuffer_adaptor, owner_resize)
@@ -161,7 +200,7 @@ namespace xt
         buffer_adaptor adapt(data1, size1);
 
         size_t size2 = 50;
-        EXPECT_THROW(adapt.resize(size2), std::runtime_error);
+        XT_EXPECT_THROW(adapt.resize(size2), std::runtime_error);
         EXPECT_EQ(adapt.size(), size1);
     }
 

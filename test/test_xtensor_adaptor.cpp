@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -111,12 +112,14 @@ namespace xt
         test_reshape<adaptor_type, storage_type>(a);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xtensor_adaptor, access)
     {
         vec_type v;
         adaptor_type a(v);
         test_access<adaptor_type, storage_type>(a);
     }
+#endif
 
     TEST(xtensor_adaptor, unchecked)
     {
@@ -184,5 +187,17 @@ namespace xt
         EXPECT_EQ(ad(1, 1), 5.);
         ad = ad * 2;
         EXPECT_EQ(ad(1, 1), 10.);
+    }
+
+    TEST(xtensor_adaptor, iterator_types)
+    {
+        using vec_type = std::vector<int>;
+        using tensor_type = xtensor_adaptor<vec_type, 2>;
+        using const_tensor_type = xtensor_adaptor<const vec_type, 2>;
+        using iterator = vec_type::iterator;
+        using const_iterator = vec_type::const_iterator;
+
+        test_iterator_types<tensor_type, iterator, const_iterator>();
+        test_iterator_types<const_tensor_type, const_iterator, const_iterator>();
     }
 }

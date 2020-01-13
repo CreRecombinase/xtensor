@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -152,6 +153,7 @@ namespace xt
     {
         xarray_dynamic a;
         test_reshape(a);
+        test_throwing_reshape(a);
     }
 
     TEST(xarray, transpose)
@@ -173,11 +175,13 @@ namespace xt
         EXPECT_EQ(res(3, 0), 1.f);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xarray, access)
     {
         xarray_dynamic a;
         test_access(a);
     }
+#endif
 
     TEST(xarray, unchecked)
     {
@@ -191,11 +195,13 @@ namespace xt
         test_at(a);
     }
 
+#if !(defined(XTENSOR_ENABLE_ASSERT) && defined(XTENSOR_DISABLE_EXCEPTIONS))
     TEST(xarray, element)
     {
         xarray_dynamic a;
         test_element(a);
     }
+#endif
 
     TEST(xarray, indexed_access)
     {
@@ -293,5 +299,39 @@ namespace xt
         EXPECT_TRUE(std::equal(a.strides().begin(), a.strides().end(), c.strides().begin()) && a.strides().size() == c.strides().size());
         EXPECT_TRUE(std::equal(a.backstrides().begin(), a.backstrides().end(), c.backstrides().begin()) && a.backstrides().size() == c.backstrides().size());
         EXPECT_EQ(a.layout(), c.layout());
+    }
+
+    TEST(xarray, periodic)
+    {
+        xt::xarray<size_t> a = {{0,1,2}, {3,4,5}};
+        xt::xarray<size_t> b = {{0,1,2}, {30,40,50}};
+        a.periodic(-1,3) = 30;
+        a.periodic(-1,4) = 40;
+        a.periodic(-1,5) = 50;
+        EXPECT_EQ(a, b);
+    }
+
+    TEST(xarray, in_bounds)
+    {
+        xt::xarray<size_t> a = {{0,1,2}, {3,4,5}};
+        EXPECT_TRUE(a.in_bounds(0,0) == true);
+        EXPECT_TRUE(a.in_bounds(2,0) == false);
+    }
+
+    TEST(xarray, iterator_types)
+    {
+        using array_type = xarray<int>;
+        test_iterator_types<array_type, int*, const int*>();
+    }
+
+    auto test_reshape_compile() {
+        xt::xarray<double> a = xt::zeros<double>({5, 5});
+        return a.reshape({1, 25});
+    }
+
+    TEST(xarray, reshape_return)
+    {
+        auto a = test_reshape_compile();
+        EXPECT_EQ(a.shape(), std::vector<std::size_t>({1, 25}));
     }
 }

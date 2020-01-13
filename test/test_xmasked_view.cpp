@@ -1,6 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2017, Johan Mabille, Sylvain Corlay Wolf Vollprecht and    *
-* Martin Renou                                                             *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -8,7 +8,7 @@
 ****************************************************************************/
 
 #include "gtest/gtest.h"
-
+#include "test_common_macros.hpp"
 #include "xtensor/xoptional_assembly.hpp"
 #include "xtensor/xmasked_view.hpp"
 #include "xtensor/xio.hpp"
@@ -74,7 +74,7 @@ namespace xt
         auto data = make_test_data();
         auto masked_data = make_masked_data(data);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
         EXPECT_EQ(masked_data(0, 0), 1.);
         EXPECT_EQ(masked_data(0, 1), 2.);
         EXPECT_EQ(masked_data(0, 2), xtl::missing<double>());
@@ -85,8 +85,10 @@ namespace xt
         EXPECT_EQ(masked_data(2, 1), 8.);
         EXPECT_EQ(masked_data(2, 2), 9.);
 
-#ifdef XTENSOR_ENABLE_ASSERT
-        EXPECT_ANY_THROW(masked_data(3, 3));
+#if defined(XTENSOR_ENABLE_ASSERT)
+#if !defined(XTENSOR_DISABLE_EXCEPTIONS)
+        XT_EXPECT_ANY_THROW(masked_data(3, 3));
+#endif
 #endif
     }
 
@@ -95,7 +97,7 @@ namespace xt
         auto data = make_test_data();
         auto masked_data = make_masked_data(data);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
         EXPECT_EQ(masked_data.at(0, 0), 1.);
         EXPECT_EQ(masked_data.at(0, 1), 2.);
         EXPECT_EQ(masked_data.at(0, 2), xtl::missing<double>());
@@ -106,7 +108,7 @@ namespace xt
         EXPECT_EQ(masked_data.at(2, 1), 8.);
         EXPECT_EQ(masked_data.at(2, 2), 9.);
 
-        EXPECT_ANY_THROW(masked_data.at(3, 3));
+        XT_EXPECT_ANY_THROW(masked_data.at(3, 3));
     }
 
     TEST(xmasked_view, unchecked)
@@ -114,7 +116,7 @@ namespace xt
         auto data = make_test_data();
         auto masked_data = make_masked_data(data);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
         EXPECT_EQ(masked_data.unchecked(0, 0), 1.);
         EXPECT_EQ(masked_data.unchecked(0, 1), 2.);
         EXPECT_EQ(masked_data.unchecked(0, 2), xtl::missing<double>());
@@ -131,7 +133,7 @@ namespace xt
         auto data = make_test_data();
         auto masked_data = make_masked_data(data);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
 
         auto val = masked_data[{0, 0}];
         EXPECT_EQ(val, 1.);
@@ -149,7 +151,7 @@ namespace xt
         auto data = make_test_data();
         auto masked_data = make_masked_data(data);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
 
         auto index1 = std::array<int, 2>({0, 0});
         auto index2 = std::array<int, 2>({1, 0});
@@ -164,7 +166,7 @@ namespace xt
 
         masked_data.fill(2.);
 
-        auto masked_value = masked<xtl::xoptional<double, bool>>();
+        auto masked_value = xtl::masked<xtl::xoptional<double, bool>>();
         EXPECT_EQ(masked_data.at(0, 0), 2.);
         EXPECT_EQ(masked_data.at(0, 1), 2.);
         EXPECT_EQ(masked_data.at(0, 2), 2.);
@@ -197,7 +199,7 @@ namespace xt
 
         auto masked_data = masked_view(data, mask);
 
-        auto masked_value = masked<double>();
+        auto masked_value = xtl::masked<double>();
 
         EXPECT_EQ(masked_data(0, 0), 1.);
         EXPECT_EQ(masked_data.at(0, 1),-2.);
@@ -239,5 +241,21 @@ namespace xt
                                     { 0.4, 5. ,-6. },
                                     { 0.7, 8. , 0.9}};
         EXPECT_EQ(data, expected1);
+    }
+
+    TEST(xmasked_view, view)
+    {
+	xt::xarray<size_t> data = {{0,1}, {2,3}, {4,5}};
+	xt::xarray<size_t> data_new = xt::zeros<size_t>(data.shape());
+	xt::xarray<bool> col_mask = {false, true};
+
+	auto row_masked = xt::masked_view(xt::view(data, 0, xt::all()), col_mask);
+        auto new_row_masked = xt::masked_view(xt::view(data_new, 0, xt::all()), col_mask);
+
+        row_masked += 10;
+        new_row_masked = row_masked;
+
+        EXPECT_EQ(data_new(0, 0), size_t(0));
+        EXPECT_EQ(data_new(0, 1), size_t(11));
     }
 }

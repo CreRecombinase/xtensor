@@ -83,7 +83,35 @@ The following minimal ``CMakeLists.txt`` is enough to build the first example:
     find_package(xtensor REQUIRED)
 
     add_executable(first_example src/example.cpp)
-    target_link_libraries(first_example xtensor)
+
+    if(MSVC)
+        set(CMAKE_EXE_LINKER_FLAGS /MANIFEST:NO)
+    endif()
+
+    target_link_libraries(first_example xtensor xtensor::optimize xtensor::use_xsimd)
+
+.. note::
+
+    .. code:: cmake
+
+        target_link_libraries(... xtensor::optimize)
+
+    set the following compiler flags:
+
+    *   Unix: ``-march=native``;
+    *   Windows: ``/EHsc /MP /bigobj``.
+
+    This may speed-up your code, but renders it hardware dependent.
+
+.. note::
+
+    .. code:: cmake
+
+        target_link_libraries(... xtensor::use_xsimd)
+
+    enables `xsimd <https://github.com/xtensor-stack/xsimd>`_: an optional dependency of xtensor that enables simd acceleration,
+    i.e. executing a same operation on a batch of data in a single CPU instruction.
+    This is well-suited to improve performance when operating on tensors, but renders it hardware dependent.
 
 `cmake` has to know where to find the headers, this is done through the ``CMAKE_INSTALL_PREFIX``
 variable. Note that ``CMAKE_INSTALL_PREFIX`` is usually the path to a folder containing the following
@@ -100,6 +128,8 @@ the first example with cmake and then runs the program:
     cmake -DCMAKE_INSTALL_PREFIX=your_prefix ..
     make
     ./first_program
+
+See :ref:`build-configuration` for more details about the build options.
 
 Second example: reshape
 -----------------------
@@ -130,6 +160,15 @@ When compiled and run, this produces the following output:
     {{1, 2, 3},
      {4, 5, 6},
      {7, 8, 9}}
+
+.. tip::
+
+  To print the shape to the standard output you can use
+
+  .. code-block:: cpp
+
+      const auto& s = arr.shape();
+      std::copy(s.cbegin(), s.cend(), std::ostream_iterator<double>(std::cout, " "));
 
 Third example: index access
 ---------------------------

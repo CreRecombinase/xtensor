@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -18,16 +19,9 @@
 #include <type_traits>
 
 #include "xexception.hpp"
+#include "xtensor_config.hpp"
 #include "xtensor_simd.hpp"
 #include "xutils.hpp"
-
-#ifndef XTENSOR_ALIGNMENT
-    #ifdef XTENSOR_USE_XSIMD
-        #define XTENSOR_ALIGNMENT XSIMD_DEFAULT_ALIGNMENT
-    #else
-        #define XTENSOR_ALIGNMENT 0
-    #endif
-#endif
 
 namespace xt
 {
@@ -39,21 +33,21 @@ namespace xt
                                                                                std::input_iterator_tag>::value>::type;
     }
 
-    template <class T, class Allocator = std::allocator<T>>
+    template <class T, class A = std::allocator<T>>
     class uvector
     {
     public:
 
-        using allocator_type = Allocator;
+        using allocator_type = A;
 
-        using value_type = typename allocator_type::value_type;
-        using reference = typename allocator_type::reference;
-        using const_reference = typename allocator_type::const_reference;
-        using pointer = typename allocator_type::pointer;
-        using const_pointer = typename allocator_type::const_pointer;
+        using value_type = typename std::allocator_traits<A>::value_type;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+        using pointer = typename std::allocator_traits<A>::pointer;
+        using const_pointer = typename std::allocator_traits<A>::const_pointer;
 
-        using size_type = typename allocator_type::size_type;
-        using difference_type = typename allocator_type::difference_type;
+        using size_type = typename std::allocator_traits<A>::size_type;
+        using difference_type = typename std::allocator_traits<A>::difference_type;
 
         using iterator = pointer;
         using const_iterator = const_pointer;
@@ -169,36 +163,40 @@ namespace xt
     namespace detail
     {
         template <class A>
-        inline typename A::pointer safe_init_allocate(A& alloc, typename A::size_type size)
+        inline typename std::allocator_traits<A>::pointer
+        safe_init_allocate(A& alloc, typename std::allocator_traits<A>::size_type size)
         {
-            using pointer = typename A::pointer;
-            using value_type = typename A::value_type;
+            using traits = std::allocator_traits<A>;
+            using pointer = typename traits::pointer;
+            using value_type = typename traits::value_type;
             pointer res = alloc.allocate(size);
             if (!xtrivially_default_constructible<value_type>::value)
             {
                 for (pointer p = res; p != res + size; ++p)
                 {
-                    alloc.construct(p, value_type());
+                    traits::construct(alloc, p, value_type());
                 }
             }
             return res;
         }
 
         template <class A>
-        inline void safe_destroy_deallocate(A& alloc, typename A::pointer ptr, typename A::size_type size)
+        inline void safe_destroy_deallocate(A& alloc, typename std::allocator_traits<A>::pointer ptr,
+                                            typename std::allocator_traits<A>::size_type size)
         {
-            using pointer = typename A::pointer;
-            using value_type = typename A::value_type;
+            using traits = std::allocator_traits<A>;
+            using pointer = typename traits::pointer;
+            using value_type = typename traits::value_type;
             if (ptr != nullptr)
             {
                 if (!xtrivially_default_constructible<value_type>::value)
                 {
                     for (pointer p = ptr; p != ptr + size; ++p)
                     {
-                        alloc.destroy(p);
+                        traits::destroy(alloc, p);
                     }
                 }
-                alloc.deallocate(ptr, size);
+                traits::deallocate(alloc, ptr, size);
             }
         }
     }
@@ -416,7 +414,7 @@ namespace xt
     inline auto uvector<T, A>::at(size_type i) -> reference
     {
         if(i >= size())
-            throw std::out_of_range("Out of range in uvector access");
+            XTENSOR_THROW(std::out_of_range, "Out of range in uvector access");
         return this->operator[](i);
     }
 
@@ -424,7 +422,7 @@ namespace xt
     inline auto uvector<T, A>::at(size_type i) const -> const_reference
     {
         if(i >= size())
-            throw std::out_of_range("Out of range in uvector access");
+            XTENSOR_THROW(std::out_of_range, "Out of range in uvector access");
         return this->operator[](i);
     }
 
@@ -601,7 +599,7 @@ namespace xt
         };
 
         template <class T, std::size_t A>
-        struct allocator_alignment<xsimd::aligned_allocator<T, A>>
+        struct allocator_alignment<xt_simd::aligned_allocator<T, A>>
         {
             constexpr static std::size_t value = A;
         };
@@ -614,13 +612,13 @@ namespace xt
 
         using self_type = svector<T, N, A, Init>;
         using allocator_type = A;
-        using size_type = typename A::size_type;
-        using value_type = typename A::value_type;
-        using pointer = typename A::pointer;
-        using const_pointer = typename A::const_pointer;
-        using reference = typename A::reference;
-        using const_reference = typename A::const_reference;
-        using difference_type = typename A::difference_type;
+        using size_type = typename std::allocator_traits<A>::size_type;
+        using value_type = typename std::allocator_traits<A>::value_type;
+        using pointer = typename std::allocator_traits<A>::pointer;
+        using const_pointer = typename std::allocator_traits<A>::const_pointer;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+        using difference_type = typename std::allocator_traits<A>::difference_type;
 
         using iterator = pointer;
         using const_iterator = const_pointer;
@@ -904,7 +902,7 @@ namespace xt
     inline auto svector<T, N, A, Init>::at(size_type idx) -> reference
     {
         if(idx >= size())
-            throw std::out_of_range("Out of range in svector access");
+            XTENSOR_THROW(std::out_of_range, "Out of range in svector access");
         return this->operator[](idx);
     }
 
@@ -912,7 +910,7 @@ namespace xt
     inline auto svector<T, N, A, Init>::at(size_type idx) const -> const_reference
     {
         if(idx >= size())
-            throw std::out_of_range("Out of range in svector access");
+            XTENSOR_THROW(std::out_of_range, "Out of range in svector access");
         return this->operator[](idx);
     }
 
@@ -1325,7 +1323,7 @@ namespace xt
         lhs.swap(rhs);
     }
 
-    #define XTENSOR_SELECT_ALIGN (XTENSOR_ALIGNMENT != 0 ? XTENSOR_ALIGNMENT : alignof(T))
+    #define XTENSOR_SELECT_ALIGN (XTENSOR_DEFAULT_ALIGNMENT != 0 ? XTENSOR_DEFAULT_ALIGNMENT : alignof(T))
 
     template <class X, class T, std::size_t N, class A, bool B>
     struct rebind_container<X, svector<T, N, A, B>>
@@ -1346,7 +1344,7 @@ namespace xt
         // Note: this is for alignment detection. The allocator serves no other purpose than
         //       that of a trait here.
         using allocator_type = std::conditional_t<Align != 0,
-                                                  xsimd::aligned_allocator<T, Align>,
+                                                  xt_simd::aligned_allocator<T, Align>,
                                                   std::allocator<T>>;
     };
 
@@ -1515,7 +1513,44 @@ namespace xt
 #undef GCC4_FALLBACK
 
 
-// Workaround for rebind_container problems on GCC 8  with C++17 enabled
+    template <class T, std::size_t N>
+    inline bool operator==(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return std::equal(lhs.cbegin(), lhs.cend(), rhs.cbegin());
+    }
+
+    template <class T, std::size_t N>
+    inline bool operator!=(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+    template <class T, std::size_t N>
+    inline bool operator<(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return std::lexicographical_compare(lhs.begin(), lhs.end(),
+                                            rhs.begin(), rhs.end());
+    }
+
+    template <class T, std::size_t N>
+    inline bool operator<=(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return !(lhs > rhs);
+    }
+
+    template <class T, std::size_t N>
+    inline bool operator>(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return rhs < lhs;
+    }
+
+    template <class T, std::size_t N>
+    inline bool operator>=(const const_array<T, N>& lhs, const const_array<T, N>& rhs)
+    {
+        return !(lhs < rhs);
+    }
+
+// Workaround for rebind_container problems on GCC 8 with C++17 enabled
 #if defined(__GNUC__) && __GNUC__ > 6 && !defined(__clang__) && __cplusplus >= 201703L
     template <class X, class T, std::size_t N>
     struct rebind_container<X, aligned_array<T, N>>
@@ -1549,10 +1584,18 @@ namespace xt
 #endif
         using value_type = std::size_t;
         using size_type = std::size_t;
+        using const_iterator = typename cast_type::const_iterator;
 
         constexpr static std::size_t size()
         {
             return sizeof...(X);
+        }
+
+        template <std::size_t idx>
+        constexpr static auto get()
+        {
+            using cast_type = std::array<std::size_t, sizeof...(X)>;
+            return std::get<idx>(cast_type{X...});
         }
 
         XTENSOR_FIXED_SHAPE_CONSTEXPR operator cast_type() const
@@ -1636,6 +1679,9 @@ namespace xt
         template <std::ptrdiff_t OS, std::ptrdiff_t OE>
         explicit sequence_view(const sequence_view<E, OS, OE>& other);
 
+        template <class T, class R = decltype(std::declval<T>().begin())>
+        operator T() const;
+
         bool empty() const;
         size_type size() const;
         const_reference operator[](std::size_t idx) const;
@@ -1656,6 +1702,7 @@ namespace xt
         const E& storage() const;
 
     private:
+
         const E& m_sequence;
     };
 
@@ -1670,6 +1717,15 @@ namespace xt
     sequence_view<E, Start, End>::sequence_view(const sequence_view<E, OS, OE>& other)
         : m_sequence(other.storage())
     {
+    }
+
+    template <class E, std::ptrdiff_t Start, std::ptrdiff_t End>
+    template <class T, class R>
+    sequence_view<E, Start, End>::operator T() const
+    {
+        T ret = xtl::make_sequence<T>(this->size());
+        std::copy(this->cbegin(), this->cend(), ret.begin());
+        return ret;
     }
 
     template <class E, std::ptrdiff_t Start, std::ptrdiff_t End>
@@ -1800,8 +1856,8 @@ namespace xt
 // clang warnings here
 
 #if defined(__clang__)
-    #pragma clang diagnostic push
-    #pragma clang diagnostic ignored "-Wmismatched-tags"
+    # pragma clang diagnostic push
+    # pragma clang diagnostic ignored "-Wmismatched-tags"
 #endif
 
 namespace std
@@ -1830,11 +1886,10 @@ namespace std
 }
 
 #if defined(__clang__)
-    #pragma clang diagnostic pop
+    # pragma clang diagnostic pop
 #endif
 
 #undef XTENSOR_CONST
-#undef XTENSOR_ALIGNMENT
 #undef XTENSOR_SELECT_ALIGN
 
 #endif

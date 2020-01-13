@@ -1,6 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay, Wolf Vollprecht and   *
-* Martin Renou                                                             *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -8,15 +8,18 @@
 ****************************************************************************/
 
 #include "gtest/gtest.h"
-
+#include "test_common_macros.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xtensor.hpp"
 #include "xtensor/xbuilder.hpp"
 #include "xtensor/xmanipulation.hpp"
+#include "xtensor/xview.hpp"
+
+#include "xtensor/xio.hpp"
 
 namespace xt
 {
-    TEST(xstrided_view, transpose_assignment)
+    TEST(xmanipulation, transpose_assignment)
     {
         xarray<double> e = xt::arange<double>(24);
         e.resize({2, 2, 6});
@@ -26,11 +29,11 @@ namespace xt
         EXPECT_EQ(123, e(1, 0, 0));
         auto val = vt[{1, 0, 1}];
         EXPECT_EQ(e(1, 0, 1), val);
-        EXPECT_ANY_THROW(vt.at(10, 10, 10));
-        EXPECT_ANY_THROW(vt.at(0, 0, 0, 0));
+        XT_EXPECT_ANY_THROW(vt.at(10, 10, 10));
+        XT_EXPECT_ANY_THROW(vt.at(0, 0, 0, 0));
     }
 
-    TEST(xstrided_view, transpose_layout_swap)
+    TEST(xmanipulation, transpose_layout_swap)
     {
         xarray<double, layout_type::row_major> a = xt::ones<double>({5, 5});
 
@@ -52,7 +55,7 @@ namespace xt
         EXPECT_EQ(cbw3.layout(), layout_type::dynamic);
     }
 
-    TEST(xstrided_view, transpose_function)
+    TEST(xmanipulation, transpose_function)
     {
         xarray<int, layout_type::row_major> a = { { 0, 1, 2 }, { 3, 4, 5 } };
         xarray<int, layout_type::row_major> b = { { 0, 1, 2 }, { 3, 4, 5 } };
@@ -65,8 +68,8 @@ namespace xt
         EXPECT_EQ(fun(1, 1), tr(1, 1));
         EXPECT_EQ(fun(1, 2), tr(2, 1));
 
-        xarray<int, layout_type::column_major> a2 = { { 0, 1, 2 },{ 3, 4, 5 } };
-        xarray<int, layout_type::column_major> b2 = { { 0, 1, 2 },{ 3, 4, 5 } };
+        xarray<int, layout_type::column_major> a2 = { { 0, 1, 2 }, { 3, 4, 5 } };
+        xarray<int, layout_type::column_major> b2 = { { 0, 1, 2 }, { 3, 4, 5 } };
         auto fun2 = a2 + b2;
         auto tr2 = transpose(fun2);
         EXPECT_EQ(fun2(0, 0), tr2(0, 0));
@@ -77,9 +80,9 @@ namespace xt
         EXPECT_EQ(fun2(1, 2), tr2(2, 1));
     }
 
-    TEST(xstrided_view, ravel)
+    TEST(xmanipulation, ravel)
     {
-        xarray<int, layout_type::row_major> a = { { 0, 1, 2 },{ 3, 4, 5 } };
+        xarray<int, layout_type::row_major> a = { { 0, 1, 2 }, { 3, 4, 5 } };
 
         auto flat = ravel<layout_type::row_major>(a);
         EXPECT_EQ(flat(0), a(0, 0));
@@ -103,8 +106,37 @@ namespace xt
         auto flat3 = ravel(a);
         EXPECT_EQ(flat, flat3);
     }
+    
+    TEST(xmanipulation, flatten)
+    {
+        xtensor<double, 3> a = linspace<double>(1., 100., 100).reshape({2, 5, 10});
+        auto v = view(a, range(0, 2), range(0, 3), range(0, 3));
+        xtensor<double, 1> fl = flatten<XTENSOR_DEFAULT_TRAVERSAL>(v);
+        xtensor<double, 1> expected_rm = {  1.,  2., 3., 11., 12., 13., 21., 22., 23.,
+                                           51., 52., 53, 61., 62., 63., 71., 72., 73. };
+        xtensor<double, 1> expected_cm = { 1.,  2.,  3.,  4.,  5.,  6.,
+                                          11., 12., 13., 14., 15., 16.,
+                                          21., 22., 23., 24., 25., 26.};
+        xtensor<double, 1> expected = XTENSOR_DEFAULT_TRAVERSAL==layout_type::row_major ? expected_rm : expected_cm;
+        EXPECT_EQ(fl, expected);
+        auto v2 = strided_view(a, {range(0, 2), range(0, 3), range(0, 3)});
+        xtensor<double, 1> fl2 = flatten<XTENSOR_DEFAULT_TRAVERSAL>(v2);
+        EXPECT_EQ(fl2, expected);
+    }
 
-    TEST(xstrided_view, split)
+    TEST(xmanipulation, flatnonzero)
+    {
+        xt::xtensor<int, 1> a = arange(-2, 3);
+        std::vector<std::size_t> expected_a = {0, 1, 3, 4};
+        EXPECT_EQ(expected_a, flatnonzero<layout_type::row_major>(a));
+
+        xt::xarray<int> b = arange(-2, 3);
+        std::vector<std::size_t> expected_b = {0, 1, 3, 4};
+        EXPECT_EQ(expected_b, flatnonzero<layout_type::row_major>(b));
+
+    }
+
+    TEST(xmanipulation, split)
     {
         auto b = xt::xarray<double>::from_shape({3, 3, 3});
         using ds = xt::dynamic_shape<std::size_t>;
@@ -116,8 +148,8 @@ namespace xt
         EXPECT_EQ(s1[1](0, 0), b(1, 0, 0));
         EXPECT_EQ(s1[2](0, 0), b(2, 0, 0));
 
-        EXPECT_THROW(split(b, 4), std::runtime_error);
-        EXPECT_THROW(split(b, 2), std::runtime_error);
+        XT_EXPECT_THROW(split(b, 4), std::runtime_error);
+        XT_EXPECT_THROW(split(b, 2), std::runtime_error);
 
         auto s2 = split(b, 1);
         EXPECT_EQ(s2.size(), 1u);
@@ -132,7 +164,23 @@ namespace xt
         EXPECT_EQ(s3[2](0, 1), b(0, 2, 1));
     }
 
-    TEST(xstrided_view, squeeze)
+    TEST(xmanipulation, hsplit)
+    {
+        xt::xarray<int> a = {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}};
+        auto res = xt::hsplit(a, 2);
+        auto e = xt::split(a, 2, 1);
+        EXPECT_EQ(e, res);
+    }
+
+    TEST(xmanipulation, vsplit)
+    {
+        xt::xarray<int> a = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}};
+        auto res = xt::vsplit(a, 2);
+        auto e = xt::split(a, 2, 0);
+        EXPECT_EQ(e, res);
+    }
+
+    TEST(xmanipulation, squeeze)
     {
         auto b = xt::xarray<double>::from_shape({3, 3, 1, 1, 2, 1, 3});
         std::iota(b.begin(), b.end(), 0);
@@ -141,8 +189,8 @@ namespace xt
 
         EXPECT_EQ(sq.shape(), ds({3, 3, 2, 3}));
         EXPECT_EQ(sq(1, 1, 1, 1), b(1, 1, 0, 0, 1, 0, 1));
-        EXPECT_THROW(squeeze(b, 1, check_policy::full()), std::runtime_error);
-        EXPECT_THROW(squeeze(b, 10, check_policy::full()), std::runtime_error);
+        XT_EXPECT_THROW(squeeze(b, 1, check_policy::full()), std::runtime_error);
+        XT_EXPECT_THROW(squeeze(b, 10, check_policy::full()), std::runtime_error);
 
         auto sq2 = squeeze(b, {2, 3}, check_policy::full());
         EXPECT_EQ(sq2.shape(), ds({3, 3, 2, 1, 3}));
@@ -153,7 +201,7 @@ namespace xt
         EXPECT_EQ(sq3(2, 2, 0, 1, 0, 2), b(2, 2, 0, 0, 1, 0, 2));
     }
 
-    TEST(xstrided_view, expand_dims)
+    TEST(xmanipulation, expand_dims)
     {
         auto b = xt::xarray<double>::from_shape({3, 3});
         std::iota(b.begin(), b.end(), 0);
@@ -169,7 +217,7 @@ namespace xt
         EXPECT_EQ(ex1(2, 0, 1), b(2, 1));
     }
 
-    TEST(xstrided_view, atleast_nd)
+    TEST(xmanipulation, atleast_nd)
     {
         xt::xarray<char> d0 = 123;
         auto d1 = xt::xarray<char>::from_shape({3});
@@ -199,7 +247,7 @@ namespace xt
         EXPECT_EQ(d2d1.shape(), ds({1, 3}));
     }
 
-    TEST(xstrided_view, trim_zeros)
+    TEST(xmanipulation, trim_zeros)
     {
         using arr_t = xarray<int>;
         arr_t a = {0, 0, 0, 1, 3, 0};
@@ -235,7 +283,7 @@ namespace xt
         EXPECT_EQ(trim_zeros(d, "b"), edb);
     }
 
-    TEST(xstrided_view, flipud)
+    TEST(xmanipulation, flipud)
     {
         xarray<double> e = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
         xarray<double> t = xt::flip(e, 0);
@@ -257,7 +305,7 @@ namespace xt
         ASSERT_EQ(expected_2, ft);
     }
 
-    TEST(xstrided_view, fliplr)
+    TEST(xmanipulation, fliplr)
     {
         xarray<double> e = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
         xarray<double> t = xt::flip(e, 1);
@@ -281,20 +329,20 @@ namespace xt
         ASSERT_EQ(expected_2, ft);
     }
 
-    TEST(xstrided_view, rot90)
+    TEST(xmanipulation, rot90)
     {
         xarray<double> e = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
         xarray<double> e2 = {{1, 2}, {3, 4}};
         xarray<double> e3 = {{{0, 1}, {2, 3}}, {{4, 5}, {6, 7}}};
 
         std::array<std::ptrdiff_t, 2> axes = {0, 0};
-        ASSERT_ANY_THROW(xt::rot90(e, axes));
+        XT_ASSERT_ANY_THROW(xt::rot90(e, axes));
         axes = {1, 1};
-        ASSERT_ANY_THROW(xt::rot90(e, axes));
+        XT_ASSERT_ANY_THROW(xt::rot90(e, axes));
         axes = {0, 2};
-        ASSERT_ANY_THROW(xt::rot90(e, axes));
+        XT_ASSERT_ANY_THROW(xt::rot90(e, axes));
         axes = {56, 58};
-        ASSERT_ANY_THROW(xt::rot90(e, axes));
+        XT_ASSERT_ANY_THROW(xt::rot90(e, axes));
 
         ASSERT_EQ(e, xt::rot90<0>(e));
         ASSERT_EQ(e, xt::rot90<4>(e));
@@ -313,5 +361,38 @@ namespace xt
 
         xarray<double> expected5 = {{{1, 3}, {0, 2}}, {{5, 7}, {4, 6}}};
         ASSERT_EQ(expected5, xt::rot90(e3, {1, 2}));
+    }
+
+    TEST(xmanipulation, roll)
+    {
+        xarray<double> e1 = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+
+        ASSERT_EQ(e1, xt::roll(e1, 0));
+
+        xarray<double> expected1 = {{2, 3, 4}, {5, 6, 7}, {8, 9, 1}};
+        ASSERT_EQ(expected1, xt::roll(e1, -1));
+
+        xarray<double> expected2 = {{8, 9, 1}, {2, 3, 4}, {5, 6, 7}};
+        ASSERT_EQ(expected2, xt::roll(e1, 2));
+
+        xarray<double> expected3 = {{8, 9, 1}, {2, 3, 4}, {5, 6, 7}};
+        ASSERT_EQ(expected3, xt::roll(e1, 11));
+
+        xarray<double> expected4 = {{7, 8, 9}, {1, 2, 3}, {4, 5, 6}};
+        ASSERT_EQ(expected4, xt::roll(e1, 1, /*axis*/0));
+
+        xarray<double> expected5 = {{3, 1, 2}, {6, 4, 5}, {9, 7, 8}};
+        ASSERT_EQ(expected5, xt::roll(e1, 1, /*axis*/1));
+
+        xarray<double> e2 = {{{1, 2, 3}}, {{4, 5, 6}}, {{7, 8, 9}}};
+
+        xarray<double> expected6 = {{{4, 5, 6}}, {{7, 8, 9}}, {{1, 2, 3}}};
+        ASSERT_EQ(expected6, xt::roll(e2, 2, /*axis*/0));
+
+        xarray<double> expected7 = {{{1, 2, 3}}, {{4, 5, 6}}, {{7, 8, 9}}};
+        ASSERT_EQ(expected7, xt::roll(e2, -2, /*axis*/1));
+
+        xarray<double> expected8 = {{{3, 1, 2}}, {{6, 4, 5}}, {{9, 7, 8}}};
+        ASSERT_EQ(expected8, xt::roll(e2, -2, /*axis*/2));
     }
 }

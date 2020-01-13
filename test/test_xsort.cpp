@@ -1,10 +1,11 @@
-/****************************************************************************
- * Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
- *                                                                          *
- * Distributed under the terms of the BSD 3-Clause License.                 *
- *                                                                          *
- * The full license is in the file LICENSE, distributed with this software. *
- ****************************************************************************/
+/***************************************************************************
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
+*                                                                          *
+* Distributed under the terms of the BSD 3-Clause License.                 *
+*                                                                          *
+* The full license is in the file LICENSE, distributed with this software. *
+****************************************************************************/
 
 #include "gtest/gtest.h"
 #include "xtensor/xarray.hpp"
@@ -67,6 +68,22 @@ namespace xt
         {
             xtensor_fixed<double, xt::xshape<2, 3>> tf1 = a2_c;
             EXPECT_EQ(ex2_1, argsort(tf1));
+        }
+    }
+
+    TEST(xsort, flatten_argsort)
+    {
+        {
+            xarray<int, layout_type::row_major> a = {{1, 2, 3}, {4, 5, 6}};
+            xarray<std::size_t, layout_type::row_major> res = argsort(a, placeholders::xtuph());
+            xarray<std::size_t, layout_type::row_major> expected = {0, 1, 2, 3, 4, 5};
+            EXPECT_EQ(res, expected);
+        }
+        {
+            xarray<int, layout_type::column_major> a = {{1, 2, 3}, {4, 5, 6}};
+            xarray<std::size_t, layout_type::column_major> res = argsort(a, placeholders::xtuph());
+            xarray<std::size_t, layout_type::column_major> expected = {0, 1, 2, 3, 4, 5};
+            EXPECT_EQ(res, expected);
         }
     }
 
@@ -138,9 +155,20 @@ namespace xt
         xarray<std::size_t> ex_3 = {0, 0};
         EXPECT_EQ(ex_3, argmax(a, 1));
 
-        xt::xtensor<int, 2> b = {{ 1,2 }};
+        xtensor<int, 2> b = {{ 1,2 }};
         auto res = xt::eval(xt::argmax(b, 1));
-        EXPECT_EQ(res(), 0u);
+        EXPECT_EQ(res(), 1u);
+
+        xtensor<int, 3> c = {{{1, 2, 3, 4}},
+                             {{4, 3, 2, 1}}};
+        xtensor<std::size_t, 2> ex_4 = {{3}, {0}};
+        EXPECT_EQ(ex_4, argmax(c, 2));
+
+        xtensor<std::size_t, 2> ex_5 = {{1, 1, 0, 0}};
+        EXPECT_EQ(ex_5, argmax(c, 0));
+
+        xtensor<std::size_t, 2> ex_6 = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+        EXPECT_EQ(ex_6, argmax(c, 1));
     }
 
     TEST(xsort, sort_large_prob)
@@ -216,6 +244,14 @@ namespace xt
         xarray<double> bb = {{1,2,3}, {7,8,9}, {4,5,6}, {7,8,9}};
         xarray<double> bbx = {1,2,3,4,5,6,7,8,9};
         EXPECT_EQ(unique(bb), bbx);
+
+        auto c = view(b, range(0, 3), range(0, 3));
+        auto d = unique(c);
+        EXPECT_EQ(d, bx);
+
+        auto e = xt::unique(xt::where(xt::greater(b,2), 1, 0)); 
+        xarray<double> ex = {0, 1};
+        EXPECT_EQ(e, ex);
     }
 
     TEST(xsort, setdiff1d)
@@ -290,7 +326,7 @@ namespace xt
         auto ma0 = median(a, 0);
         auto ma1 = median(a, 1);
 
-        EXPECT_EQ(mall, 5);
+        EXPECT_EQ(mall, 5.f);
 
         xt::xtensor<float, 1> ma0_exp = {5, 5, 5, 5};
         xt::xtensor<float, 1> ma1_exp = {2.5, 1.5, 9., 12., 5.};

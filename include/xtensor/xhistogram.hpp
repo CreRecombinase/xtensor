@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -32,8 +33,7 @@ namespace xt
     inline auto histogram(E1&& data, E2&& bin_edges, E3&& weights, bool density = false)
     {
         // alias counter and value type
-        using size_type
-            = detail::common_size_type_t<std::decay_t<E1>, std::decay_t<E2>, std::decay_t<E3>>;
+        using size_type = common_size_type_t<std::decay_t<E1>, std::decay_t<E2>, std::decay_t<E3>>;
         using value_type = typename std::decay_t<E3>::value_type;
 
         // basic checks
@@ -189,7 +189,7 @@ namespace xt
                                     histogram_algorithm mode = histogram_algorithm::automatic)
     {
         // counter and return type
-        using size_type = detail::common_size_type_t<std::decay_t<E1>, std::decay_t<E2>>;
+        using size_type = common_size_type_t<std::decay_t<E1>, std::decay_t<E2>>;
         using value_type = typename std::decay_t<E1>::value_type;
         using weights_type = typename std::decay_t<E2>::value_type;
 
@@ -404,7 +404,7 @@ namespace xt
 
         if (left_right[0] < input_value_type(0))
         {
-            throw std::runtime_error(
+            XTENSOR_THROW(std::runtime_error,
                 "Data argument for bincount can only contain positive integers!");
         }
 

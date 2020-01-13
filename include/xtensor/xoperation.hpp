@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -19,35 +20,6 @@
 #include "xscalar.hpp"
 #include "xstrides.hpp"
 #include "xstrided_view.hpp"
-#include "xmanipulation.hpp"
-
-namespace xtl
-{
-    template <class CT, class CB>
-    class xoptional;
-
-    template <class... Args>
-    struct at_least_one_xoptional : disjunction<is_xoptional<Args>...>
-    {
-    };
-
-    template <class B, class T1, class T2, XTL_REQUIRES(negation<at_least_one_xoptional<B, T1, T2>>)>
-    inline std::common_type_t<T1, T2> select(const B& cond, const T1& v1, const T2& v2) noexcept
-    {
-        return cond ? v1 : v2;
-    }
-
-    template <class B, class T1, class T2, XTL_REQUIRES(at_least_one_xoptional<B, T1, T2>)>
-    inline common_optional_t<T1, T2> select(const B& cond, const T1& v1, const T2& v2) noexcept
-    {
-        using bool_type = common_optional_t<B>;
-        using return_type = common_optional_t<T1, T2>;
-        bool_type opt_cond(cond);
-        return opt_cond.has_value() ?
-            opt_cond.value() ? return_type(v1) : return_type(v2) :
-            missing<typename return_type::value_type>();
-    }
-}
 
 namespace xt
 {
@@ -56,7 +28,7 @@ namespace xt
      * helpers *
      ***********/
 
-#define UNARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, R)                                \
+#define UNARY_OPERATOR_FUNCTOR(NAME, OP)                                        \
     struct NAME                                                                 \
     {                                                                           \
         template <class A1>                                                     \
@@ -71,10 +43,7 @@ namespace xt
         }                                                                       \
     }
 
-#define UNARY_OPERATOR_FUNCTOR(NAME, OP) UNARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, T)
-#define UNARY_BOOL_OPERATOR_FUNCTOR(NAME, OP) UNARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, bool)
-
-#define BINARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, R)                                \
+#define BINARY_OPERATOR_FUNCTOR(NAME, OP)                                        \
     struct NAME                                                                  \
     {                                                                            \
         template <class T1, class T2>                                            \
@@ -89,9 +58,6 @@ namespace xt
         }                                                                        \
     }
 
-#define BINARY_OPERATOR_FUNCTOR(NAME, OP) BINARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, T)
-#define BINARY_BOOL_OPERATOR_FUNCTOR(NAME, OP) BINARY_OPERATOR_FUNCTOR_IMPL(NAME, OP, bool)
-
     namespace detail
     {
 
@@ -102,26 +68,26 @@ namespace xt
         BINARY_OPERATOR_FUNCTOR(multiplies, *);
         BINARY_OPERATOR_FUNCTOR(divides, /);
         BINARY_OPERATOR_FUNCTOR(modulus, %);
-        BINARY_BOOL_OPERATOR_FUNCTOR(logical_or, ||);
-        BINARY_BOOL_OPERATOR_FUNCTOR(logical_and, &&);
-        UNARY_BOOL_OPERATOR_FUNCTOR(logical_not, !);
+        BINARY_OPERATOR_FUNCTOR(logical_or, ||);
+        BINARY_OPERATOR_FUNCTOR(logical_and, &&);
+        UNARY_OPERATOR_FUNCTOR(logical_not, !);
         BINARY_OPERATOR_FUNCTOR(bitwise_or, |);
         BINARY_OPERATOR_FUNCTOR(bitwise_and, &);
         BINARY_OPERATOR_FUNCTOR(bitwise_xor, ^);
         UNARY_OPERATOR_FUNCTOR(bitwise_not, ~);
         BINARY_OPERATOR_FUNCTOR(left_shift, <<);
         BINARY_OPERATOR_FUNCTOR(right_shift, >>);
-        BINARY_BOOL_OPERATOR_FUNCTOR(less, <);
-        BINARY_BOOL_OPERATOR_FUNCTOR(less_equal, <=);
-        BINARY_BOOL_OPERATOR_FUNCTOR(greater, >);
-        BINARY_BOOL_OPERATOR_FUNCTOR(greater_equal, >=);
-        BINARY_BOOL_OPERATOR_FUNCTOR(equal_to, ==);
-        BINARY_BOOL_OPERATOR_FUNCTOR(not_equal_to, !=);
+        BINARY_OPERATOR_FUNCTOR(less, <);
+        BINARY_OPERATOR_FUNCTOR(less_equal, <=);
+        BINARY_OPERATOR_FUNCTOR(greater, >);
+        BINARY_OPERATOR_FUNCTOR(greater_equal, >=);
+        BINARY_OPERATOR_FUNCTOR(equal_to, ==);
+        BINARY_OPERATOR_FUNCTOR(not_equal_to, !=);
 
         struct conditional_ternary
         {
             template <class B>
-            using get_batch_bool = typename xsimd::simd_traits<typename xsimd::revert_simd_traits<B>::type>::bool_type;
+            using get_batch_bool = typename xt_simd::simd_traits<typename xt_simd::revert_simd_traits<B>::type>::bool_type;
 
             template <class B, class A1, class A2>
             constexpr auto operator()(const B& cond, const A1& v1, const A2& v2) const noexcept
@@ -134,7 +100,7 @@ namespace xt
                                    const B& t2,
                                    const B& t3) const noexcept
             {
-                return xsimd::select(t1, t2, t3);
+                return xt_simd::select(t1, t2, t3);
             }
         };
 
@@ -206,11 +172,7 @@ namespace xt
     }
 
 #undef UNARY_OPERATOR_FUNCTOR
-#undef UNARY_BOOL_OPERATOR_FUNCTOR
-#undef UNARY_OPERATOR_FUNCTOR_IMPL
 #undef BINARY_OPERATOR_FUNCTOR
-#undef BINARY_BOOL_OPERATOR_FUNCTOR
-#undef BINARY_OPERATOR_FUNCTOR_IMPL
 
     /*************
      * operators *
@@ -805,24 +767,61 @@ namespace xt
 
     namespace detail
     {
-        template <class S, class I>
+        template <layout_type L>
+        struct next_idx_impl;
+
+        template <>
+        struct next_idx_impl<layout_type::row_major>
+        {
+            template <class S, class I>
+            inline auto operator()(const S& shape, I& idx)
+            {
+                for (std::size_t j = shape.size(); j > 0; --j)
+                {
+                    std::size_t i = j - 1;
+                    if (idx[i] >= shape[i] - 1)
+                    {
+                        idx[i] = 0;
+                    }
+                    else
+                    {
+                        idx[i]++;
+                        return idx;
+                    }
+                }
+                // return empty index, happens at last iteration step, but remains unused
+                return I();
+            }
+        };
+
+        template <>
+        struct next_idx_impl<layout_type::column_major>
+        {
+            template <class S, class I>
+            inline auto operator()(const S& shape, I& idx)
+            {
+                for(std::size_t i = 0; i < shape.size(); ++i)
+                {
+                    if(idx[i] >= shape[i] - 1)
+                    {
+                        idx[i] = 0;
+                    }
+                    else
+                    {
+                        idx[i]++;
+                        return idx;
+                    }
+                }
+                // return empty index, happens at last iteration step, but remains unused
+                return I();
+            }
+        };
+
+        template <layout_type L = XTENSOR_DEFAULT_TRAVERSAL, class S, class I>
         inline auto next_idx(const S& shape, I& idx)
         {
-            for (std::size_t j = shape.size(); j > 0; --j)
-            {
-                std::size_t i = j - 1;
-                if (idx[i] >= shape[i] - 1)
-                {
-                    idx[i] = 0;
-                }
-                else
-                {
-                    idx[i]++;
-                    return idx;
-                }
-            }
-            // return empty index, happens at last iteration step, but remains unused
-            return I();
+            next_idx_impl<L> nii;
+            return nii(shape, idx);
         }
     }
 
@@ -861,20 +860,6 @@ namespace xt
 
     /**
      * @ingroup logical_operators
-     * @brief return indices that are non-zero in the flattened version of arr,
-     * equivalent to nonzero(ravel<layout_type>(arr))[0];
-     *
-     * @param arr input array
-     * @return indices that are non-zero in the flattened version of arr
-     */
-    template <layout_type L, class T>
-    inline auto flatnonzero(const T& arr)
-    {
-        return nonzero(ravel<L>(arr))[0];
-    }
-
-    /**
-     * @ingroup logical_operators
      * @brief return vector of indices where condition is true
      *        (equivalent to \a nonzero(condition))
      *
@@ -891,12 +876,13 @@ namespace xt
      * @ingroup logical_operators
      * @brief return vector of indices where arr is not zero
      *
+     * @tparam L the traversal order
      * @param arr input array
      * @return vector of index_types where arr is not equal to zero (use `xt::from_indices` to convert)
      *
      * @sa xt::from_indices
      */
-    template <class T>
+    template <layout_type L = XTENSOR_DEFAULT_TRAVERSAL, class T>
     inline auto argwhere(const T& arr)
     {
         auto shape = arr.shape();
@@ -907,7 +893,7 @@ namespace xt
         std::vector<index_type> indices;
 
         size_type total_size = compute_size(shape);
-        for (size_type i = 0; i < total_size; i++, detail::next_idx(shape, idx))
+        for (size_type i = 0; i < total_size; i++, detail::next_idx<L>(shape, idx))
         {
             if (arr.element(std::begin(idx), std::end(idx)))
             {

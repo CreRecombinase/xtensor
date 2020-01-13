@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -48,6 +49,29 @@ namespace xt
         std::stringstream buffer;
         buffer << sa;
         EXPECT_EQ(buffer.str(), "{{ 1.,  2.,  3.,  4.},\n { 5.,  6.,  7.,  8.}}");
+    }
+
+    TEST(xexpression, shared_iterator)
+    {
+        xarray<double> a = {{1,2,3,4}, {5,6,7,8}};
+        xarray<double> ca = {{1,2,3,4}, {5,6,7,8}};
+
+        auto sa = make_xshared(std::move(a));
+
+        EXPECT_EQ(*(sa.begin()), *(ca.begin()));
+        EXPECT_EQ(*(sa.cbegin()), *(ca.cbegin()));
+        EXPECT_EQ(*(sa.rbegin()), *(ca.rbegin()));
+        EXPECT_EQ(*(sa.crbegin()), *(ca.crbegin()));
+
+        auto it = sa.begin() + 8;
+        EXPECT_EQ(it, sa.end());
+        auto cit = sa.cbegin() + 8;
+        EXPECT_EQ(cit, sa.cend());
+
+        auto rit = sa.rbegin() + 8;
+        EXPECT_EQ(rit, sa.rend());
+        auto crit = sa.crbegin() + 8;
+        EXPECT_EQ(crit, sa.crend());
     }
 
     template <class E>

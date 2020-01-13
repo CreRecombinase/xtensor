@@ -29,6 +29,7 @@
 
 # Vim tmp files
 *.swp
+*~
 
 # Build directory
 build/
@@ -48,6 +49,9 @@ docs/*.tmp
 
 # Jupyter artefacts
 .ipynb_checkpoints/
+
+# Pytho artefacts
+__pycache__
 
 # Generated files
 *.pc

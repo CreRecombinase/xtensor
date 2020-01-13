@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -11,6 +12,7 @@
 
 #include "xtensor/xlayout.hpp"
 #include "xtensor/xmanipulation.hpp"
+#include "test_common_macros.hpp"
 
 namespace xt
 {
@@ -232,9 +234,27 @@ namespace xt
             vec.resize(shape);
             vec.reshape(signed_shape, layout_type::row_major);
             compare_shape(vec, rm);
+
+            vec.resize(shape);
+            vec.reshape({ 3, -1, 4 }, layout_type::row_major);
+            compare_shape(vec, rm);
+
+            auto & vec_ref = vec.reshape({ 3, -1, 4 }, layout_type::row_major);
+            compare_shape(vec_ref, rm);
+
             shape = rm.m_shape;
             shape.front() += 123;
-            EXPECT_THROW(vec.reshape(shape), std::runtime_error);
+            XT_EXPECT_THROW(vec_ref.reshape(shape), std::runtime_error);
+        }
+    }
+
+    template <class V>
+    void test_throwing_reshape(V& vec)
+    {
+        {
+            SCOPED_TRACE("throwing reshape");
+            vec = xt::arange(6);
+            XT_EXPECT_THROW(vec.reshape({2}), std::runtime_error);
         }
     }
 
@@ -324,10 +344,10 @@ namespace xt
             row_major_result<C> rm;
             vec.reshape(rm.shape(), layout_type::row_major);
 
-            EXPECT_THROW(transpose(vec, {1, 1, 0}, check_policy::full()), transpose_error);
-            EXPECT_THROW(transpose(vec, {1, 0, 2, 3}, check_policy::full()), transpose_error);
-            EXPECT_THROW(transpose(vec, {1, 2}, check_policy::full()), transpose_error);
-            EXPECT_THROW(transpose(vec, {3, 0, 1}, check_policy::full()), transpose_error);
+            XT_EXPECT_THROW(transpose(vec, {1, 1, 0}, check_policy::full()), transpose_error);
+            XT_EXPECT_THROW(transpose(vec, {1, 0, 2, 3}, check_policy::full()), transpose_error);
+            XT_EXPECT_THROW(transpose(vec, {1, 2}, check_policy::full()), transpose_error);
+            XT_EXPECT_THROW(transpose(vec, {3, 0, 1}, check_policy::full()), transpose_error);
         }
     }
 
@@ -363,8 +383,8 @@ namespace xt
     template <class V>
     void test_bound_check(V& vec)
     {
-#ifdef XTENSOR_ENABLE_ASSERT
-        EXPECT_ANY_THROW(vec(10, 10, 10));
+#if XTENSOR_ENABLE_ASSERT
+        XT_EXPECT_ANY_THROW(vec(10, 10, 10));
 #else
         (void)vec;
 #endif
@@ -373,8 +393,8 @@ namespace xt
     template <class V>
     void test_access_check(V& vec)
     {
-        EXPECT_ANY_THROW(vec.at(10, 10, 10));
-        EXPECT_ANY_THROW(vec.at(0, 0, 0, 0, 0, 0));
+        XT_EXPECT_ANY_THROW(vec.at(10, 10, 10));
+        XT_EXPECT_ANY_THROW(vec.at(0, 0, 0, 0, 0, 0));
     }
 
     template <class V, class C = dynamic_shape<std::size_t>>
@@ -672,7 +692,7 @@ namespace xt
         {
             SCOPED_TRACE("incompatible shapes");
             shape_type s4 = {2, 1, 3, 2};
-            EXPECT_THROW(vec.broadcast_shape(s4), broadcast_error);
+            XT_EXPECT_THROW(vec.broadcast_shape(s4), broadcast_error);
         }
     }
 
@@ -852,6 +872,62 @@ namespace xt
             }
             EXPECT_EQ(iter, iter_end);
         }
+    }
+
+    // C: container type (xarray<int>, xtensor<int>)
+    // SIT: storage iterator (int*, std::vector<int>::iterator)
+    // SCIT: storage const iterator (const int*, std::vector<int>::const_iterator)
+    template <class C, class SIT, class SCIT>
+    void test_iterator_types()
+    {   
+        using stepper = xstepper<C>;
+        using const_stepper = xstepper<const C>;
+        using shape_type = typename C::shape_type;
+
+        using rm_layout_iterator = typename C::template layout_iterator<layout_type::row_major>;
+        using rm_const_layout_iterator = typename C::template const_layout_iterator<layout_type::row_major>;
+        using rm_reverse_layout_iterator = typename C::template reverse_layout_iterator<layout_type::row_major>;
+        using rm_const_reverse_layout_iterator = typename C::template const_reverse_layout_iterator<layout_type::row_major>;
+        
+        using exp_rm_layout_iterator = xiterator<stepper, shape_type*, layout_type::row_major>;
+        using exp_rm_const_layout_iterator = xiterator<const_stepper, shape_type*, layout_type::row_major>;
+        using exp_rm_reverse_layout_iterator = std::reverse_iterator<rm_layout_iterator>;
+        using exp_rm_const_reverse_layout_iterator = std::reverse_iterator<rm_const_layout_iterator>;
+
+        EXPECT_TRUE((std::is_same<rm_layout_iterator, exp_rm_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<rm_const_layout_iterator, exp_rm_const_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<rm_reverse_layout_iterator, exp_rm_reverse_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<rm_const_reverse_layout_iterator, exp_rm_const_reverse_layout_iterator>::value));
+
+        using cm_layout_iterator = typename C::template layout_iterator<layout_type::column_major>;
+        using cm_const_layout_iterator = typename C::template const_layout_iterator<layout_type::column_major>;
+        using cm_reverse_layout_iterator = typename C::template reverse_layout_iterator<layout_type::column_major>;
+        using cm_const_reverse_layout_iterator = typename C::template const_reverse_layout_iterator<layout_type::column_major>;     
+        
+        using exp_cm_layout_iterator = xiterator<stepper, shape_type*, layout_type::column_major>;
+        using exp_cm_const_layout_iterator = xiterator<const_stepper, shape_type*, layout_type::column_major>;
+        using exp_cm_reverse_layout_iterator = std::reverse_iterator<cm_layout_iterator>;
+        using exp_cm_const_reverse_layout_iterator = std::reverse_iterator<cm_const_layout_iterator>;
+
+        EXPECT_TRUE((std::is_same<cm_layout_iterator, exp_cm_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<cm_const_layout_iterator, exp_cm_const_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<cm_reverse_layout_iterator, exp_cm_reverse_layout_iterator>::value));
+        EXPECT_TRUE((std::is_same<cm_const_reverse_layout_iterator, exp_cm_const_reverse_layout_iterator>::value));
+
+        using storage_iterator = typename C::storage_iterator;
+        using const_storage_iterator = typename C::const_storage_iterator;
+        using reverse_storage_iterator = typename C::reverse_storage_iterator;
+        using const_reverse_storage_iterator = typename C::const_reverse_storage_iterator;
+
+        using exp_storage_iterator = SIT;
+        using exp_const_storage_iterator = SCIT;
+        using exp_reverse_storage_iterator = std::reverse_iterator<SIT>;
+        using exp_const_reverse_storage_iterator = std::reverse_iterator<SCIT>;
+
+        EXPECT_TRUE((std::is_same<storage_iterator, exp_storage_iterator>::value));
+        EXPECT_TRUE((std::is_same<const_storage_iterator, exp_const_storage_iterator>::value));
+        EXPECT_TRUE((std::is_same<reverse_storage_iterator, exp_reverse_storage_iterator>::value));
+        EXPECT_TRUE((std::is_same<const_reverse_storage_iterator, exp_const_reverse_storage_iterator>::value));
     }
 }
 

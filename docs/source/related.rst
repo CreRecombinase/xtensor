@@ -419,17 +419,48 @@ xtl
    :alt: xtl
 
 The xtl_ project, the only dependency of ``xtensor`` is a C++ template library
-holding the implementation of basic tools used across the libraries in the
-QuantStack ecosystem.
+holding the implementation of basic tools used across the libraries in the ecosystem.
 
-.. _xtensor-python: https://github.com/QuantStack/xtensor-python
-.. _xtensor-python-cookiecutter: https://github.com/QuantStack/xtensor-python-cookiecutter
-.. _xtensor-julia: https://github.com/QuantStack/xtensor-julia
-.. _xtensor-julia-cookiecutter: https://github.com/QuantStack/xtensor-julia-cookiecutter
-.. _xtensor-r: https://github.com/QuantStack/xtensor-r
-.. _xtensor-blas: https://github.com/QuantStack/xtensor-blas
-.. _xtensor-io: https://github.com/QuantStack/xtensor-io
+xframe
+------
+
+.. image:: xframe.svg
+   :alt: xframe
+
+The xframe_ project provides multi-dimensional labeled arrays and a data frame for C++,
+based on ``xtensor`` and ``xtl``.
+
+`xframe` provides
+
+- an extensible expression system enabling lazy broadcasting.
+- an API following the idioms of the C++ standard library.
+- tools to manipulate n-dimensional labeled tensor expressions.
+
+The API of xframe is inspired by xarray_, a Python package implementing labelled multi-dimensional arrays and datasets.
+
+z5
+--
+
+The z5_ project implements the zarr_ and n5_ storage specifications in C++.
+Both specifications describe chunked nd-array storage similar to HDF5, but
+use the filesystem to store chunks. This design allows for parallel write access
+and efficient cloud based storage, crucial requirements in modern big data applications.
+The project uses ``xtensor`` to represent arrays in memory
+and also provides a python wrapper based on ``xtensor-python``.
+
+.. _xtensor-python: https://github.com/xtensor-stack/xtensor-python
+.. _xtensor-python-cookiecutter: https://github.com/xtensor-stack/xtensor-python-cookiecutter
+.. _xtensor-julia: https://github.com/xtensor-stack/xtensor-julia
+.. _xtensor-julia-cookiecutter: https://github.com/xtensor-stack/xtensor-julia-cookiecutter
+.. _xtensor-r: https://github.com/xtensor-stack/xtensor-r
+.. _xtensor-blas: https://github.com/xtensor-stack/xtensor-blas
+.. _xtensor-io: https://github.com/xtensor-stack/xtensor-io
 .. _xtensor-fftw: https://github.com/egpbos/xtensor-fftw
 .. _xtensor-ros: https://github.com/wolfv/xtensor_ros
-.. _xsimd: https://github.com/QuantStack/xsimd
-.. _xtl: https://github.com/QuantStack/xtl
+.. _xsimd: https://github.com/xtensor-stack/xsimd
+.. _xtl: https://github.com/xtensor-stack/xtl
+.. _xframe: https://github.com/xtensor-stack/xframe
+.. _z5: https://github.com/constantinpape/z5
+.. _zarr: https://github.com/zarr-developers/zarr
+.. _n5: https://github.com/saalfeldlab/n5i
+.. _xarray: http://xarray.pydata.org

@@ -43,7 +43,7 @@ However, this requires to carefully compute the strides to avoid buffer overflow
     #include "xtensor/xarray.hpp"
 
     std::vector<size_t> shape = { 3, 2, 4 };
-    xt::xarray<double, xt::layout_type::dynamic> a(shape, xt::layout::row_major);
+    xt::xarray<double, xt::layout_type::dynamic> a(shape, xt::layout_type::row_major);
 
 If the layout of the array can be fixed at compile time, we can make it even simpler:
 
@@ -99,10 +99,40 @@ other etc... They provide an augmented interface compared to other ``xexpression
 - ``resize()`` resizes the container in place, that is, if the global size of the container doesn't change, no memory allocation occurs.
 - ``strides()`` returns the strides of the container, used to compute the position of an element in the underlying buffer.
 
+Reshape
+-------
+
+The ``reshape`` method accepts any kind of 1D-container, you don't have to pass an instance of ``shape_type``. It only requires the new shape to be
+compatible with the old one, that is, the number of elements in the container must remain the same:
+
+.. code::
+
+    #include "xtensor/xarray.hpp"
+
+    xt::xarray<int> a = { 1, 2, 3, 4, 5, 6, 7, 8};
+    // The following two lines ...
+    std::array<std::size_t, 2> sh1 = {2, 4};
+    a.reshape(sh1);
+    // ... are equivalent to the following two lines ...
+    xt::xarray<int>::shape_type sh2({2, 4});
+    a.reshape(sh2);
+    // ... which are equivalent to the following
+    a.reshape({2, 4});
+
+One of the values in the ``shape`` argument can be -1. In this case, the value is inferred from the number of elements in the container and the remaining
+values in the ``shape``:
+
+.. code::
+
+    #include "xtensor/xarray.hpp"
+    xt::xarray<int> a = { 1, 2, 3, 4, 5, 6, 7, 8};
+    a.reshape({2, -1});
+    // a.shape() return {2, 4}
+
 Performance
 -----------
 
-The dynamic dimensionality of ``xarray`` comes at a cost. Since the dimension is unknown at build time, the sequences holding shape and strides of ``xarray`` instances are heap-allocated, which makes it significantly more expansive than ``xtensor``. Shape and strides of ``xtensor`` are stack-allocated which makes them more efficient.
+The dynamic dimensionality of ``xarray`` comes at a cost. Since the dimension is unknown at build time, the sequences holding shape and strides of ``xarray`` instances are heap-allocated, which makes it significantly more expensive than ``xtensor``. Shape and strides of ``xtensor`` are stack-allocated which makes them more efficient.
 
 More generally, the library implements a ``promote_shape`` mechanism at build time to determine the optimal sequence type to hold the shape of an expression. The shape type of a broadcasting expression whose members have a dimensionality determined at compile time will have a stack-allocated shape. If a single member of a broadcasting expression has a dynamic dimension (for example an ``xarray``), it bubbles up to the entire broadcasting expression which will have a heap-allocated shape. The same hold for views, broadcast expressions, etc...
 

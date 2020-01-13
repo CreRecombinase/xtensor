@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -10,8 +11,8 @@
 #define XTENSOR_CONFIG_HPP
 
 #define XTENSOR_VERSION_MAJOR 0
-#define XTENSOR_VERSION_MINOR 19
-#define XTENSOR_VERSION_PATCH 4
+#define XTENSOR_VERSION_MINOR 21
+#define XTENSOR_VERSION_PATCH 3-dev
 
 // DETECT 3.6 <= clang < 3.8 for compiler bug workaround.
 #ifdef __clang__
@@ -21,6 +22,25 @@
         #include <vector>
     #endif
 #endif
+
+// Define if the library is going to be using exceptions.
+#if (!defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND))
+#undef XTENSOR_DISABLE_EXCEPTIONS
+#define XTENSOR_DISABLE_EXCEPTIONS
+#endif
+
+// Exception support.
+#if defined(XTENSOR_DISABLE_EXCEPTIONS)
+#define XTENSOR_THROW(_, msg)            \
+    {                                    \
+      std::cerr << msg << std::endl;     \
+      std::abort();                      \
+    }
+#else
+#define XTENSOR_THROW(exception, msg) throw exception(msg)
+#endif
+
+
 
 // Workaround for some missing constexpr functionality in MSVC 2015 and MSVC 2017 x86
 #if defined(_MSC_VER)
@@ -61,14 +81,22 @@
     #endif
 #else
     #ifdef XTENSOR_USE_XSIMD
-    #include <xsimd/xsimd.hpp>
-    #define XTENSOR_DEFAULT_ALLOCATOR(T) \
-        xsimd::aligned_allocator<T, XSIMD_DEFAULT_ALIGNMENT>
+        #include <xsimd/xsimd.hpp>
+        #define XTENSOR_DEFAULT_ALLOCATOR(T) \
+            xsimd::aligned_allocator<T, XSIMD_DEFAULT_ALIGNMENT>
     #else
-    #define XTENSOR_DEFAULT_ALLOCATOR(T) \
-        std::allocator<T>
+        #define XTENSOR_DEFAULT_ALLOCATOR(T) \
+            std::allocator<T>
     #endif
 #endif
+#endif
+
+#ifndef XTENSOR_DEFAULT_ALIGNMENT
+    #ifdef XTENSOR_USE_XSIMD
+        #define XTENSOR_DEFAULT_ALIGNMENT XSIMD_DEFAULT_ALIGNMENT
+    #else
+        #define XTENSOR_DEFAULT_ALIGNMENT 0
+    #endif
 #endif
 
 #ifndef XTENSOR_DEFAULT_LAYOUT
@@ -77,6 +105,10 @@
 
 #ifndef XTENSOR_DEFAULT_TRAVERSAL
 #define XTENSOR_DEFAULT_TRAVERSAL ::xt::layout_type::row_major
+#endif
+
+#ifndef XTENSOR_OPENMP_TRESHOLD
+#define XTENSOR_OPENMP_TRESHOLD 0
 #endif
 
 #ifdef IN_DOXYGEN

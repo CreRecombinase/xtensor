@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -11,6 +12,7 @@
 #include "xtensor/xarray.hpp"
 #include "xtensor/xtensor.hpp"
 #include "xtensor/xbuilder.hpp"
+#include "xtensor/xmanipulation.hpp"
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xfixed.hpp"
@@ -222,5 +224,21 @@ namespace xt
         EXPECT_TRUE(expected_0 == res_0);
         truth = std::is_same<typename decltype(res_0)::shape_type, xshape<4, 3>>::value;
         EXPECT_TRUE(truth);
+    }
+
+    TEST(xaccumulator, empty_array)
+    {
+        xt::xarray<double> a = xt::ones<double>({ 3, 4, 0 });
+
+        auto result0 = xt::cumsum(a);
+        auto expected0 = xt::xarray<double>::from_shape({ 0 });
+        EXPECT_EQ(result0, expected0);
+
+        auto result1 = xt::cumsum(a, 2);
+        auto expected = xt::xarray<double>::from_shape({ 3, 4, 0 });
+        EXPECT_EQ(result1, expected);
+
+        auto result2 = xt::cumsum(a, 1);
+        EXPECT_EQ(result2, expected);
     }
 }

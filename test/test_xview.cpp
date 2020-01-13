@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -9,7 +10,7 @@
 #include <algorithm>
 
 #include "gtest/gtest.h"
-
+#include "test_common_macros.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xbuilder.hpp"
 #include "xtensor/xfixed.hpp"
@@ -71,24 +72,24 @@ namespace xt
         EXPECT_EQ(a(1, 1), view1(0));
         EXPECT_EQ(a(1, 2), view1(1));
         EXPECT_EQ(size_t(1), view1.dimension());
-        EXPECT_ANY_THROW(view1.at(10));
-        EXPECT_ANY_THROW(view1.at(0, 0));
+        XT_EXPECT_ANY_THROW(view1.at(10));
+        XT_EXPECT_ANY_THROW(view1.at(0, 0));
 
         auto view0 = view(a, 0, range(0, 3));
         EXPECT_EQ(a(0, 0), view0(0));
         EXPECT_EQ(a(0, 1), view0(1));
         EXPECT_EQ(size_t(1), view0.dimension());
-        EXPECT_EQ(size_t(3), view0.shape()[0]);
+        EXPECT_EQ(size_t(3), view0.shape(0));
 
         auto view2 = view(a, range(0, 2), 2);
         EXPECT_EQ(a(0, 2), view2(0));
         EXPECT_EQ(a(1, 2), view2(1));
         EXPECT_EQ(size_t(1), view2.dimension());
-        EXPECT_EQ(size_t(2), view2.shape()[0]);
+        EXPECT_EQ(size_t(2), view2.shape(0));
 
         auto view4 = view(a, 1);
         EXPECT_EQ(size_t(1), view4.dimension());
-        EXPECT_EQ(size_t(4), view4.shape()[0]);
+        EXPECT_EQ(size_t(4), view4.shape(0));
 
         auto view5 = view(view4, 1);
         EXPECT_EQ(size_t(0), view5.dimension());
@@ -125,6 +126,26 @@ namespace xt
             EXPECT_EQ(layout_type::dynamic, view6.layout());
             EXPECT_EQ(a.layout(), view7.layout());
         }
+    }
+
+    TEST(xview, stored_range)
+    {
+        view_shape_type shape = { 3, 4 };
+        xarray<double> a(shape);
+        std::vector<double> data = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        std::copy(data.cbegin(), data.cend(), a.template begin<layout_type::row_major>());
+
+        auto r0 = range(1, 3);
+        auto r1 = range(0, 3);
+        auto view0 = view(a, r0, r1);
+
+        view0 += xt::ones<double>({2, 3});
+        EXPECT_EQ(a(1, 0), 6);
+        EXPECT_EQ(a(1, 1), 7);
+        EXPECT_EQ(a(1, 2), 8);
+        EXPECT_EQ(a(2, 0), 10);
+        EXPECT_EQ(a(2, 1), 11);
+        EXPECT_EQ(a(2, 2), 12);
     }
 
     TEST(xview, copy_semantic)
@@ -225,8 +246,8 @@ namespace xt
         EXPECT_EQ(a(1, 0, 1), view1(0, 1));
         EXPECT_EQ(a(1, 1, 0), view1(1, 0));
         EXPECT_EQ(a(1, 1, 1), view1(1, 1));
-        EXPECT_ANY_THROW(view1.at(10, 10));
-        EXPECT_ANY_THROW(view1.at(0, 0, 0));
+        XT_EXPECT_ANY_THROW(view1.at(10, 10));
+        XT_EXPECT_ANY_THROW(view1.at(0, 0, 0));
 
         std::array<std::size_t, 2> idx = {1, 1};
         EXPECT_EQ(a(1, 1, 1), view1.element(idx.cbegin(), idx.cend()));
@@ -476,6 +497,7 @@ namespace xt
         EXPECT_EQ(v2, 3);
 
         auto it = a2.begin();
+        EXPECT_EQ(*it, v2);
     }
 
     TEST(xview, trivial_iterating)
@@ -813,10 +835,10 @@ namespace xt
 
         EXPECT_FALSE(broadcastable(v.shape(), b.shape()));
         EXPECT_FALSE(broadcastable(b.shape(), v.shape()));
-        EXPECT_THROW(assert_compatible_shape(b, v), broadcast_error);
-        EXPECT_THROW(assert_compatible_shape(v, b), broadcast_error);
-        EXPECT_THROW(v = b, broadcast_error);
-        EXPECT_THROW(noalias(v) = b, broadcast_error);
+        XT_EXPECT_THROW(assert_compatible_shape(b, v), broadcast_error);
+        XT_EXPECT_THROW(assert_compatible_shape(v, b), broadcast_error);
+        XT_EXPECT_THROW(v = b, broadcast_error);
+        XT_EXPECT_THROW(noalias(v) = b, broadcast_error);
     }
 
     TEST(xview, strides)
@@ -1174,6 +1196,14 @@ namespace xt
         EXPECT_TRUE(std::equal(b.begin() + 3, b.end(), vb.begin()));
         EXPECT_EQ(b.size() - 3, vb.size());
 
+        vector_type cvta = va;
+        std::array<int, 4> cvtb = vb;
+        vector_type cvta_expected = { 3, 4, 5, 6 };
+        std::array<int, 4> cvtb_expected = { 3, 4, 5, 6};
+
+        EXPECT_EQ(cvta, cvta_expected);
+        EXPECT_EQ(cvtb, cvtb_expected);
+
         auto vae = sequence_view<vector_type, 3, 5>(a);
         auto vbe = sequence_view<array_type, 3, 5>(b);
 
@@ -1252,19 +1282,13 @@ namespace xt
             using assign_traits = xassign_traits<decltype(vxt), decltype(b)>;
 
     #if XTENSOR_USE_XSIMD
-            EXPECT_TRUE(assign_traits::convertible_types());
-            EXPECT_TRUE(assign_traits::simd_size());
-            EXPECT_FALSE(assign_traits::forbid_simd());
-            EXPECT_TRUE(assign_traits::simd_assign());
+            EXPECT_TRUE(assign_traits::simd_linear_assign());
     #endif
 
             using assign_traits2 = xassign_traits<decltype(b), decltype(vxa)>;
 
     #if XTENSOR_USE_XSIMD
-            EXPECT_TRUE(assign_traits2::convertible_types());
-            EXPECT_TRUE(assign_traits2::simd_size());
-            EXPECT_TRUE(assign_traits2::forbid_simd());
-            EXPECT_FALSE(assign_traits2::simd_assign());
+            EXPECT_FALSE(assign_traits2::simd_linear_assign());
     #endif
         }
     }
@@ -1334,7 +1358,7 @@ namespace xt
                                   {5, 6, 7, 8},
                                   {9, 10, 11, 12},
                                   {13, 14, 15, 16} };
-        
+
         auto v = xt::view(xt::view(a, xt::all(), xt::keep(0, 1)), xt::all(), 0);
         xt::xtensor<int, 1> res = v;
 
@@ -1372,4 +1396,262 @@ namespace xt
 
         EXPECT_EQ(b, exp);
     }
+
+    TEST(xview, periodic)
+    {
+        xt::xtensor<size_t,2> a = {{0,1,2}, {3,4,5}};
+        xt::xtensor<size_t,2> b = {{0,1,2}, {30,40,50}};
+        auto view = xt::view(a, xt::keep(1), xt::all());
+        view.periodic(-1,3) = 30;
+        view.periodic(-1,4) = 40;
+        view.periodic(-1,5) = 50;
+        EXPECT_EQ(a, b);
+    }
+
+    TEST(xview, in_bounds)
+    {
+        xt::xtensor<size_t,2> a = {{0,1,2}, {3,4,5}};
+        auto view = xt::view(a, xt::keep(1), xt::all());
+        EXPECT_TRUE(view.in_bounds(0,0) == true);
+        EXPECT_TRUE(view.in_bounds(2,0) == false);
+    }
+
+    TEST(xview, strides_compute_out_of_bounds)
+    {
+        // check that the compute_strides_impl does not access `a` strides out
+        // of bound! Can be observed with Valgrind or MSVC debug
+        xt::xtensor<double, 1> a = {1};
+        auto v1 = xt::view(a, xt::all(), xt::newaxis());
+        EXPECT_EQ(v1.dimension(), 2ul);
+        EXPECT_EQ(v1.strides().size(), 2ul);
+        EXPECT_EQ(v1.strides()[0], 0);
+        EXPECT_EQ(v1.strides()[1], 0);
+    }
+
+    template <class E>
+    auto transform(E& x) {
+      x += 2;
+    }
+
+    TEST(xview, nontrivial_strides)
+    {
+        using farray = xt::xtensor<float, 2, xt::layout_type::column_major>;
+        const farray x_orig = xt::random::randn<float>({2, 2});
+
+        using namespace xt::placeholders;
+
+        farray x_view = x_orig;
+
+        auto x1 = xt::view(x_view, xt::all(), xt::range(_, 1));
+        auto x2 = xt::view(x_view, xt::all(), xt::range(1, _));
+
+        transform(x1);
+        transform(x2);
+        EXPECT_TRUE(xt::allclose(x_view, float(2) + x_orig));
+
+        for (auto it = x1.begin(); it != x1.end(); ++it)
+        {
+            *it += 5;
+        }
+        for (auto it = x2.begin(); it != x2.end(); ++it)
+        {
+            *it += 5;
+        }
+        EXPECT_TRUE(xt::allclose(x_view, float(7) + x_orig));
+    }
+
+    TEST(xview, element)
+    {
+        xarray<int> a = { {1, 2, 3}, {4, 5, 6} };
+        auto v = view(a, 0);
+        std::array<std::size_t, 2> idx = { 0, 1 };
+        int res = v.element(idx.cbegin(), idx.cend());
+        EXPECT_EQ(res, 2);
+    }
+
+    TEST(xview, view_reshape_view)
+    {
+        xtensor<int, 1> a = { 0, 1, 2 };
+        xtensor<int, 1> b = { 2, 3, 4 };
+        auto tmp = reshape_view(a, {3});
+        auto res = view(std::move(tmp), xt::all());
+        noalias(view(reshape_view(a, {3}), xt::all())) = b;
+        EXPECT_EQ(tmp, res);
+    }
+
+    TEST(xview, view_on_bool)
+    {
+        xt::xarray<bool> a { { false, false }, { false, false } };
+        xt::xarray<bool> b { {  true,  true }, {  true,  true } };
+        xt::view( a, 0 ) = xt::view( b, 0 );
+        EXPECT_TRUE(a(0, 0));
+        EXPECT_TRUE(a(0, 1));
+        EXPECT_FALSE(a(1, 0));
+        EXPECT_FALSE(a(1, 1));
+    }
+
+    TEST(xview, first_rows_on_2dim_xarray)
+    {
+        xt::xarray<int> array{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        const auto first_row = xt::row(array, 0);
+        const auto second_row = xt::row(array, 1);
+
+        EXPECT_EQ(first_row(0), 1);
+        EXPECT_EQ(first_row(1), 2);
+        EXPECT_EQ(second_row(0), 3);
+        EXPECT_EQ(second_row(1), 4);
+    }
+
+    TEST(xview, last_rows_on_2dim_xarray)
+    {
+        xt::xarray<int> array{
+            { 1, 2 },
+            { 3, 4 },
+            { 5, 6 },
+        };
+
+        const auto last_row = xt::row(array, -1);
+        const auto second_last_row = xt::row(array, -2);
+
+        EXPECT_EQ(last_row(0), 5);
+        EXPECT_EQ(last_row(1), 6);
+        EXPECT_EQ(second_last_row(0), 3);
+        EXPECT_EQ(second_last_row(1), 4);
+    }
+
+    TEST(xiew, row_on_2dim_xtensor)
+    {
+        xt::xtensor<int, 2> tensor{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        std::cout << tensor.shape().size() << std::endl;
+
+        const auto row0 = xt::row(tensor, 0);
+        const auto row1 = xt::row(tensor, 1);
+
+        EXPECT_EQ(row0(0), 1);
+        EXPECT_EQ(row0(1), 2);
+        EXPECT_EQ(row1(0), 3);
+        EXPECT_EQ(row1(1), 4);
+    }
+
+    TEST(xiew, row_on_2dim_xtensor_fixed)
+    {
+        xt::xtensor_fixed<int, xshape<2, 2>> tensor_fixed{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        const auto row0 = xt::row(tensor_fixed, 0);
+        const auto row1 = xt::row(tensor_fixed, 1);
+
+        EXPECT_EQ(row0(0), 1);
+        EXPECT_EQ(row0(1), 2);
+        EXPECT_EQ(row1(0), 3);
+        EXPECT_EQ(row1(1), 4);
+    }
+
+    TEST(xview, row_on_3dim_array)
+    {
+        xt::xarray<int> arr{
+            { { 1, 2 }, { 3, 4 } },
+            { { 5, 6 }, { 7, 8 } },
+        };
+
+        XT_ASSERT_THROW(
+            const auto row = xt::row(arr, 0),
+            std::invalid_argument
+        );
+    }
+
+    TEST(xview, first_cols_on_2dim_xarray)
+    {
+        xt::xarray<int> array{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        const auto first_col = xt::col(array, 0);
+        const auto second_col = xt::col(array, 1);
+
+        EXPECT_EQ(first_col(0), 1);
+        EXPECT_EQ(first_col(1), 3);
+        EXPECT_EQ(second_col(0), 2);
+        EXPECT_EQ(second_col(1), 4);
+    }
+
+    TEST(xview, last_cols_on_2dim_xarray)
+    {
+        xt::xarray<int> array{
+            { 1, 2, 3 },
+            { 4, 5, 6 },
+        };
+
+        const auto last_col = xt::col(array, -1);
+        const auto second_last_col = xt::col(array, -2);
+
+        EXPECT_EQ(last_col(0), 3);
+        EXPECT_EQ(last_col(1), 6);
+        EXPECT_EQ(second_last_col(0), 2);
+        EXPECT_EQ(second_last_col(1), 5);
+    }
+
+    TEST(xview, col_on_2dim_xtensor)
+    {
+        xt::xtensor<int, 2> tensor{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        const auto col0 = xt::col(tensor, 0);
+        const auto col1 = xt::col(tensor, 1);
+
+        EXPECT_EQ(col0(0), 1);
+        EXPECT_EQ(col0(1), 3);
+        EXPECT_EQ(col1(0), 2);
+        EXPECT_EQ(col1(1), 4);
+    }
+
+    TEST(xview, col_on_2dim_xtensor_fixed)
+    {
+        xt::xtensor_fixed<int, xshape<2, 2>> tensor_fixed{
+            { 1, 2 },
+            { 3, 4 },
+        };
+
+        const auto col0 = xt::col(tensor_fixed, 0);
+        const auto col1 = xt::col(tensor_fixed, 1);
+
+        EXPECT_EQ(col0(0), 1);
+        EXPECT_EQ(col0(1), 3);
+        EXPECT_EQ(col1(0), 2);
+        EXPECT_EQ(col1(1), 4);
+    }
+
+    TEST(xview, col_on_3dim_array)
+    {
+        xt::xarray<int> arr{
+            { { 1, 2 }, { 3, 4 } },
+            { { 5, 6 }, { 7, 8 } },
+        };
+
+        XT_ASSERT_THROW(
+            const auto col = xt::col(arr, 0),
+            std::invalid_argument
+        );
+    }
+
+    // This code should not compile!
+    //TEST(xview, col_on_3dim_xtensor)
+    //{
+    //    xt::xtensor<int, 3> tensor;
+    //    xt::row(tensor, 0);
+    //    xt::col(tensor, 0);
+    //}
 }

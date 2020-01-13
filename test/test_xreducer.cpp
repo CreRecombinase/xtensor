@@ -1,5 +1,6 @@
 /***************************************************************************
-* Copyright (c) 2016, Johan Mabille, Sylvain Corlay and Wolf Vollprecht    *
+* Copyright (c) Johan Mabille, Sylvain Corlay and Wolf Vollprecht          *
+* Copyright (c) QuantStack                                                 *
 *                                                                          *
 * Distributed under the terms of the BSD 3-Clause License.                 *
 *                                                                          *
@@ -7,6 +8,7 @@
 ****************************************************************************/
 
 #include "gtest/gtest.h"
+#include "test_common_macros.hpp"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xtensor.hpp"
 #include "xtensor/xutils.hpp"
@@ -16,7 +18,16 @@
 #include "xtensor/xreducer.hpp"
 #include "xtensor/xview.hpp"
 #include "xtensor/xmanipulation.hpp"
+#if (defined(__GNUC__) && !defined(__clang__))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #include "xtensor/xrandom.hpp"
+#pragma GCC diagnostic pop
+#else
+#include "xtensor/xrandom.hpp"
+#endif
+
+#include "xtensor/xio.hpp"
 
 namespace xt
 {
@@ -28,14 +39,14 @@ namespace xt
         using shape_type = xarray<double>::shape_type;
 
         using func = xreducer_functors<std::plus<double>>;
-        xreducer<func, const xarray<double>&, axes_type> m_red;
+        xreducer<func, const xarray<double>&, axes_type, xt::reducer_options<double, std::tuple<xt::evaluation_strategy::lazy_type>>> m_red;
 
         xreducer_features();
     };
 
     xreducer_features::xreducer_features()
         : m_axes({1, 3}), m_a(ones<double>({3, 2, 4, 6, 5})),
-          m_red(func(), m_a, m_axes)
+          m_red(func(), m_a, m_axes, xt::evaluation_strategy::lazy)
     {
         for (std::size_t i = 0; i < 2; ++i)
         {
@@ -65,10 +76,10 @@ namespace xt
     TEST(xreducer, errors)
     {
         xt::xarray<int> a = {{1, 2, 3}, {4, 5, 6}};
-        EXPECT_THROW(xt::sum(a, {1, 0}), std::runtime_error);
-        EXPECT_THROW(xt::sum(a, {0, 2}), std::runtime_error);
-        EXPECT_THROW(xt::sum(a, {1, 0}, evaluation_strategy::immediate()), std::runtime_error);
-        EXPECT_THROW(xt::sum(a, {0, 2}, evaluation_strategy::immediate()), std::runtime_error);
+        XT_EXPECT_THROW(xt::sum(a, {1, 0}), std::runtime_error);
+        XT_EXPECT_THROW(xt::sum(a, {0, 2}), std::runtime_error);
+        XT_EXPECT_THROW(xt::sum(a, {1, 0}, evaluation_strategy::immediate), std::runtime_error);
+        XT_EXPECT_THROW(xt::sum(a, {0, 2}, evaluation_strategy::immediate), std::runtime_error);
     }
 
     TEST(xreducer, shape)
@@ -107,8 +118,8 @@ namespace xt
         xreducer_features features;
         EXPECT_EQ(12, features.m_red.at(0, 0, 0));
         EXPECT_EQ(24, features.m_red.at(1, 1, 1));
-        EXPECT_ANY_THROW(features.m_red.at(10, 10, 10));
-        EXPECT_ANY_THROW(features.m_red.at(0, 0, 0, 0));
+        XT_EXPECT_ANY_THROW(features.m_red.at(10, 10, 10));
+        XT_EXPECT_ANY_THROW(features.m_red.at(0, 0, 0, 0));
     }
 
     TEST(xreducer, iterator)
@@ -119,7 +130,7 @@ namespace xt
         const xreducer_features::shape_type& s = features.m_red.shape();
         std::size_t nb_iter = 1;
         nb_iter = std::accumulate(s.cbegin(), s.cend(), nb_iter, std::multiplies<std::size_t>());
-        std::advance(iter, nb_iter);
+        std::advance(iter, static_cast<std::ptrdiff_t>(nb_iter));
         EXPECT_EQ(iter_end, iter);
     }
 
@@ -241,7 +252,7 @@ namespace xt
         auto avg0 = xt::average(a, xt::xarray<double>{3, 9}, {0});
         auto avg1 = xt::average(a, xt::xarray<double>{1,2,3,4}, {1});
         auto avg_m1 = xt::average(a, xt::xarray<double>{1,2,3,4}, {-1});
-        auto avg_d1 = xt::average(a, xt::xarray<double>{1,2,3,4}, {-1}, evaluation_strategy::immediate());
+        auto avg_d1 = xt::average(a, xt::xarray<double>{1,2,3,4}, {-1}, evaluation_strategy::immediate);
 
         xtensor<double, 0> expect_all = 1.9166666666666667;
         xtensor<double, 1> expect0 = {1.5, 1.75, 2.75, 1.75};
@@ -270,67 +281,67 @@ namespace xt
         a.resize({3, 3, 3});
 
         xarray<double> a_lz = sum(a);
-        auto a_gd = sum(a, evaluation_strategy::immediate());
+        auto a_gd = sum(a, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1});
-        a_gd = sum(a, {1}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {0, 2});
-        a_gd = sum(a, {0, 2}, evaluation_strategy::immediate());
+        a_gd = sum(a, {0, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1, 2});
-        a_gd = sum(a, {1, 2}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a = xt::arange(4 * 3 * 6 * 2 * 7);
         a.resize({4, 3, 6, 2, 7});
 
         a_lz = sum(a);
-        a_gd = sum(a, evaluation_strategy::immediate());
+        a_gd = sum(a, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1});
-        a_gd = sum(a, {1}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {0, 2});
-        a_gd = sum(a, {0, 2}, evaluation_strategy::immediate());
+        a_gd = sum(a, {0, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1, 2});
-        a_gd = sum(a, {1, 2}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1, 3, 4});
-        a_gd = sum(a, {1, 3, 4}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1, 3, 4}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {0, 1, 4});
-        a_gd = sum(a, {0, 1, 4}, evaluation_strategy::immediate());
+        a_gd = sum(a, {0, 1, 4}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {0, 1, 3});
-        a_gd = sum(a, {0, 1, 3}, evaluation_strategy::immediate());
+        a_gd = sum(a, {0, 1, 3}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {0, 2, 3});
-        a_gd = sum(a, {0, 2, 3}, evaluation_strategy::immediate());
+        a_gd = sum(a, {0, 2, 3}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         a_lz = sum(a, {1, 2, 3});
-        a_gd = sum(a, {1, 2, 3}, evaluation_strategy::immediate());
+        a_gd = sum(a, {1, 2, 3}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
 
         xtensor<short, 3, layout_type::column_major> ct = xt::random::randint<short>({1, 5, 3});
-        EXPECT_EQ(sum(ct, {0, 2}), sum(ct, {0, 2}, evaluation_strategy::immediate()));
+        EXPECT_EQ(sum(ct, {0, 2}), sum(ct, {0, 2}, evaluation_strategy::immediate));
 
         xtensor<short, 5, layout_type::column_major> ct2 = xt::random::randint<short>({1, 5, 1, 2, 3});
-        EXPECT_EQ(sum(ct2, {0, 1, 2}), sum(ct2, {0, 1, 2}, evaluation_strategy::immediate()));
-        EXPECT_EQ(sum(ct2, {2, 3}), sum(ct2, {2, 3}, evaluation_strategy::immediate()));
-        EXPECT_EQ(sum(ct2, {1, 3}), sum(ct2, {1, 3}, evaluation_strategy::immediate()));
+        EXPECT_EQ(sum(ct2, {0, 1, 2}), sum(ct2, {0, 1, 2}, evaluation_strategy::immediate));
+        EXPECT_EQ(sum(ct2, {2, 3}), sum(ct2, {2, 3}, evaluation_strategy::immediate));
+        EXPECT_EQ(sum(ct2, {1, 3}), sum(ct2, {1, 3}, evaluation_strategy::immediate));
     }
 
     TEST(xreducer, chaining_reducers)
@@ -347,7 +358,7 @@ namespace xt
     TEST(xreducer, immediate_shape)
     {
         xtensor<double, 2> c = {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}};
-        auto xa = xt::sum(c, {0}, evaluation_strategy::immediate());
+        auto xa = xt::sum(c, {0}, evaluation_strategy::immediate);
         auto is_arr = [](const auto& c)
         {
             bool istrue = detail::is_array<std::decay_t<decltype(c)>>::value;
@@ -363,16 +374,16 @@ namespace xt
         std::iota(a.storage().begin(), a.storage().end(), 0);
 
         xarray<double> a_lz = sum(a);
-        auto a_gd = sum(a, evaluation_strategy::immediate());
+        auto a_gd = sum(a, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
         EXPECT_TRUE(is_arr(a_gd.shape()));
 
         a_lz = sum(a, {1});
-        auto a_gd_1 = sum(a, {1}, evaluation_strategy::immediate());
+        auto a_gd_1 = sum(a, {1}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_1);
 
         a_lz = sum(a, {0, 2});
-        auto a_gd_2 = sum(a, {0, 2}, evaluation_strategy::immediate());
+        auto a_gd_2 = sum(a, {0, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_2);
 
     #ifndef X_OLD_CLANG
@@ -381,7 +392,7 @@ namespace xt
     #endif
 
         a_lz = sum(a, {1, 2});
-        a_gd_2 = sum(a, {1, 2}, evaluation_strategy::immediate());
+        a_gd_2 = sum(a, {1, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_2);
     }
 
@@ -401,19 +412,20 @@ namespace xt
         };
 
         xarray<double> a_lz = sum(a);
-        auto a_gd = sum(a, evaluation_strategy::immediate());
+        auto a_gd = sum(a, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd);
-        EXPECT_TRUE(is_arr(a_gd.shape()));
+
+        // EXPECT_TRUE(is_fixed(a_gd.shape())); // this actually evaluates to const_array
 
         a_lz = sum(a, xt::dynamic_shape<std::size_t>{1});
-        auto a_gd_1 = sum(a, xt::dynamic_shape<std::size_t>{1}, evaluation_strategy::immediate());
-        auto b_gd_1 = sum(b, {1}, evaluation_strategy::immediate());
+        auto a_gd_1 = sum(a, xt::dynamic_shape<std::size_t>{1}, evaluation_strategy::immediate);
+        auto b_gd_1 = sum(b, {1}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_1);
         EXPECT_EQ(a_lz, b_gd_1);
 
         a_lz = sum(a, {0, 2});
-        auto a_gd_2 = sum(a, {0, 2}, evaluation_strategy::immediate());
-        auto b_gd_2 = sum(b, {0, 2}, evaluation_strategy::immediate());
+        auto a_gd_2 = sum(a, {0, 2}, evaluation_strategy::immediate);
+        auto b_gd_2 = sum(b, {0, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_2);
         EXPECT_EQ(b_gd_2, a_gd_2);
         EXPECT_EQ(a_gd_2.dimension(), std::size_t(1));
@@ -424,11 +436,13 @@ namespace xt
     #endif
 
         a_lz = sum(a, {1, 2});
-        a_gd_2 = sum(a, {1, 2}, evaluation_strategy::immediate());
+        a_gd_2 = sum(a, {1, 2}, evaluation_strategy::immediate);
         EXPECT_EQ(a_lz, a_gd_2);
 
+        auto a_lx_3 = sum(a, {1, 2});
         auto a_lz_3 = sum(a, xshape<1, 2>());
-        auto a_gd_3 = sum(a, xshape<1, 2>(), evaluation_strategy::immediate());
+        auto a_gd_3 = sum(a, xshape<1, 2>(), evaluation_strategy::immediate);
+        xarray<double> xevd = a_lz_3;
         EXPECT_EQ(a_lz_3, a_gd_2);
         EXPECT_TRUE(a_gd_3 == a_gd_2);
         bool truth = std::is_same<decltype(a_gd_3), xtensor_fixed<double, xshape<3>>>::value;
@@ -436,11 +450,11 @@ namespace xt
 
         xtensor<short, 3> ct = xt::random::randint<short>({1, 5, 3});
         xtensor_fixed<short, xshape<1, 5, 3>> c = ct;
-        auto b_fx_1 = sum(c, xshape<0, 2>(), evaluation_strategy::immediate());
-        auto b_fx_2 = sum(c, xshape<0, 1>(), evaluation_strategy::immediate());
-        auto b_fx_3 = sum(c, xshape<0, 1, 2>(), evaluation_strategy::immediate());
+        auto b_fx_1 = sum(c, xshape<0, 2>(), evaluation_strategy::immediate);
+        auto b_fx_2 = sum(c, xshape<0, 1>(), evaluation_strategy::immediate);
+        auto b_fx_3 = sum(c, xshape<0, 1, 2>(), evaluation_strategy::immediate);
 
-        EXPECT_EQ(sum(ct, {0, 2}, evaluation_strategy::immediate()), sum(c, {0, 2}));
+        EXPECT_EQ(sum(ct, {0, 2}, evaluation_strategy::immediate), sum(c, {0, 2}));
         EXPECT_TRUE(b_fx_1 == sum(c, {0, 2}));
         EXPECT_TRUE(b_fx_2 == sum(c, {0, 1}));
         EXPECT_EQ(b_fx_3, sum(c, {0, 1, 2}));
@@ -515,5 +529,151 @@ namespace xt
         xt::xarray<double> b(1.2);
         EXPECT_EQ(b.dimension(), 0u);
         EXPECT_EQ(minmax(b)(), (A{1.2, 1.2}));
+    }
+    
+    template <std::size_t... I, std::size_t... J>
+    bool operator==(fixed_shape<I...>, fixed_shape<J...>)
+    {
+        std::array<std::size_t, sizeof...(I)> ix = {I...};
+        std::array<std::size_t, sizeof...(J)> jx = {J...};
+        return sizeof...(J) == sizeof...(I) && std::equal(ix.begin(), ix.end(), jx.begin());
+    }
+
+    TEST(xreducer, keep_dims)
+    {
+        xt::xtensor<double, 4> a = xt::reshape_view(xt::arange<double>(5 * 5 * 5 * 5), {5, 5, 5, 5});
+
+    #ifndef X_OLD_CLANG
+        auto res = xt::sum(a, {0, 1}, xt::keep_dims | xt::evaluation_strategy::immediate);   
+        EXPECT_EQ(res.shape(), (std::array<std::size_t, 4>{1, 1, 5, 5}));
+        auto res2 = xt::sum(a, {0, 1}, xt::keep_dims);   
+        EXPECT_EQ(res2.shape(), (std::array<std::size_t, 4>{1, 1, 5, 5}));
+    #else
+        auto res = xt::sum(a, {0, 1}, xt::keep_dims | xt::evaluation_strategy::immediate);   
+        EXPECT_EQ(res.shape(), (xt::dynamic_shape<std::size_t>{1, 1, 5, 5}));
+        auto res2 = xt::sum(a, {0, 1}, xt::keep_dims);   
+        EXPECT_EQ(res2.shape(), (xt::dynamic_shape<std::size_t>{1, 1, 5, 5}));
+    #endif
+
+        xt::xarray<double> b = a;
+        auto res3 = xt::sum(b, {0, 1}, xt::keep_dims | xt::evaluation_strategy::immediate);   
+        EXPECT_EQ(res3.shape(), (xt::dynamic_shape<std::size_t>{1, 1, 5, 5}));
+        auto res4 = xt::sum(b, {0, 1}, xt::keep_dims | xt::evaluation_strategy::lazy);   
+        EXPECT_EQ(res4.shape(), (xt::dynamic_shape<std::size_t>{1, 1, 5, 5}));
+
+        xt::xarray<double> resx3 = xt::sum(a, {0, 1});   
+        auto exp1 = xt::sum(a, {0, 1});
+
+        EXPECT_EQ(res, res2);
+        EXPECT_EQ(res, res3);
+        EXPECT_EQ(res, res4);
+
+        EXPECT_TRUE(xt::allclose(res, res2));
+        EXPECT_TRUE(xt::allclose(res, res3));
+        EXPECT_TRUE(xt::allclose(res, res4));
+
+        auto res5 = xt::sum(a, xt::keep_dims);
+        EXPECT_EQ(res5.shape(), (xt::static_shape<size_t, 4>{1, 1, 1, 1}));
+        auto res6 = xt::sum(a);
+        EXPECT_EQ(res6.shape(), (xt::static_shape<size_t, 0>{}));
+        xt::xtensor_fixed<double, xshape<5, 5, 5, 5>> c = a;
+        auto res7 = xt::sum(c);
+        EXPECT_EQ(res7.shape(), (xt::xshape<>{}));
+        auto res8 = xt::sum(c, xt::keep_dims);
+        EXPECT_EQ(res8.shape(), (xt::xshape<1, 1, 1, 1>{}));
+    }
+
+    TEST(xreducer, initial_value)
+    {
+        xt::xtensor<double, 4> a = xt::reshape_view(xt::arange<double>(5 * 5 * 5 * 5), {5, 5, 5, 5});
+
+        auto res = xt::sum(a, {0, 2}, xt::keep_dims | xt::evaluation_strategy::immediate | initial(5));   
+        auto reso = xt::sum(a, {0, 2}, xt::keep_dims | xt::evaluation_strategy::immediate);
+        EXPECT_EQ(res, reso + 5);
+
+        xt::xarray<double> res2 = xt::sum(a, {0, 2}, xt::keep_dims | initial(5));   
+        auto reso2 = xt::sum(a, {0, 2}, xt::keep_dims);   
+        EXPECT_EQ(res2, reso2 + 5);
+
+        auto re0 = xt::prod(a, {1, 2}, xt::keep_dims | xt::evaluation_strategy::immediate | initial(0));   
+        EXPECT_TRUE(xt::all(equal(re0, 0.)));
+
+        auto rex0 = xt::prod(a, {1, 2}, initial(0));
+        EXPECT_TRUE(xt::all(equal(rex0, 0.)));
+    }
+
+    TEST(xreducer, ones_first)
+    {
+        auto a = xt::ones<int>(std::vector<int>({ 1,1,2,4 }));
+        std::vector<int> arraxis = { 1 };
+        auto result = xt::sum(a, arraxis, xt::keep_dims | xt::evaluation_strategy::immediate);
+        EXPECT_EQ(a, result);
+
+        std::vector<int> arraxis2 = { 1, 2 };
+        auto res2 = xt::sum(a, arraxis2, xt::keep_dims | xt::evaluation_strategy::immediate);
+        xt::xarray<int> expected = { {{{2, 2, 2, 2}}} };
+        EXPECT_EQ(expected, res2);
+    }
+
+    TEST(xreducer, empty_axes)
+    {
+        xarray<int> a = { {1, 2, 3}, {4, 5, 6} };
+        std::vector<std::size_t> axes = {};
+        auto res0 = xt::sum(a, axes);
+        auto res1 = xt::sum(a, axes, xt::keep_dims | xt::evaluation_strategy::immediate);
+
+        EXPECT_EQ(res0, a);
+        EXPECT_EQ(res1, a);
+    }
+
+    TEST(xreducer, zero_shape)
+    {
+        xt::xarray<int> x = xt::zeros<int>({ 0, 1 });
+        
+        auto res0 = xt::sum(x, { 0 }, xt::keep_dims);
+        EXPECT_EQ(res0.shape()[0], size_t(1));
+        EXPECT_EQ(res0.shape()[1], size_t(1));
+        EXPECT_EQ(res0(0, 0), 0);
+
+        auto res1 = xt::sum(x, { 1 }, xt::keep_dims);
+        EXPECT_EQ(res1.shape()[0], size_t(0));
+        EXPECT_EQ(res1.shape()[1], size_t(1));
+        EXPECT_EQ(res1.size(), size_t(0));
+
+        auto res2 = xt::sum(x, xt::keep_dims);
+        EXPECT_EQ(res2.shape()[0], size_t(1));
+        EXPECT_EQ(res2.shape()[1], size_t(1));
+        EXPECT_EQ(res2(0, 0), 0);
+    }
+
+    TEST(xreducer, empty_array)
+    {
+        xt::xarray<double> a = xt::ones<double>({ 1, 2, 0, 1 });
+        double result0 = xt::mean(a)();
+        EXPECT_TRUE(std::isnan(result0));
+
+        auto result1 = xt::mean(a, { 1 });
+        auto expected1 = xt::xarray<double>::from_shape({1, 0, 1});
+        EXPECT_EQ(result1, expected1);
+       
+        auto result2 = xt::mean(a, { 2 });
+        auto expected2 = xt::xarray<double>::from_shape({1, 2, 1});
+        EXPECT_EQ(result2.shape(), expected2.shape());
+        EXPECT_TRUE(std::isnan(result2(0, 0, 0)));
+        EXPECT_TRUE(std::isnan(result2(0, 1, 0)));
+    }
+
+    TEST(xreducer, double_axis)
+    {
+        xt::xarray<int> a = xt::ones<int>({ 3, 2});
+        XT_EXPECT_ANY_THROW(xt::sum(a, {1, 1}));
+    }
+
+    TEST(xreducer, sum_xtensor_of_fixed)
+    {
+        xt::xtensor_fixed<float, xt::xshape<3>> a = {1, 2, 3}, b = {1, 2, 3};
+        xt::xtensor<xt::xtensor_fixed<float, xt::xshape<3>>, 1> c = {a, b};
+        auto res = xt::sum(c)();
+        EXPECT_EQ(res, a * 2);
     }
 }
